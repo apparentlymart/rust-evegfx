@@ -1,4 +1,5 @@
 use core::convert::TryFrom;
+use core::fmt::Debug;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 /// Represents an EVE display list command.
@@ -41,9 +42,8 @@ impl DLCmd {
         )
     }
 
-    pub const fn bitmap_layout_h(format: BitmapFormat, line_stride: u16, height: u16) -> Self {
-        OpCode::BITMAP_LAYOUT_H
-            .build((format as u32) << 19 | (line_stride as u32 >> 10) << 2 | (height as u32 >> 10))
+    pub const fn bitmap_layout_h(line_stride: u16, height: u16) -> Self {
+        OpCode::BITMAP_LAYOUT_H.build((line_stride as u32 >> 10) << 2 | (height as u32 >> 10))
     }
 
     /// `bitmap_layout_pair` is a helper for calling both `bitmap_layout` and
@@ -57,7 +57,14 @@ impl DLCmd {
     ) -> (Self, Self) {
         (
             Self::bitmap_layout(format, line_stride, height),
-            Self::bitmap_layout_h(format, line_stride, height),
+            Self::bitmap_layout_h(line_stride, height),
+        )
+    }
+
+    const fn physical_bitmap_size(width: u16, height: u16) -> (u16, u16) {
+        (
+            if width < 2048 { width } else { 0 },
+            if height < 2048 { height } else { 0 },
         )
     }
 
@@ -68,19 +75,21 @@ impl DLCmd {
         wrap_x: BitmapWrapMode,
         wrap_y: BitmapWrapMode,
     ) -> Self {
+        let (p_width, p_height) = Self::physical_bitmap_size(width, height);
         OpCode::BITMAP_SIZE.build(
             (filter as u32) << 20
                 | (wrap_x as u32) << 19
                 | (wrap_y as u32) << 18
-                | (width as u32 & 0b111111111) << 9
-                | (height as u32 & 0b111111111),
+                | (p_width as u32 & 0b111111111) << 9
+                | (p_height as u32 & 0b111111111),
         )
     }
 
     pub const fn bitmap_size_h(width: u16, height: u16) -> Self {
-        let width = ((width as u32) >> 9) & 0b11;
-        let height = ((height as u32) >> 9) & 0b11;
-        OpCode::BITMAP_SIZE_H.build(width << 9 | height)
+        let (p_width, p_height) = Self::physical_bitmap_size(width, height);
+        let p_width = ((p_width as u32) >> 9) & 0b11;
+        let p_height = ((p_height as u32) >> 9) & 0b11;
+        OpCode::BITMAP_SIZE_H.build(p_width << 9 | p_height)
     }
 
     /// `bitmap_size_pair` is a helper for calling both `bitmap_size` and
@@ -107,6 +116,12 @@ impl DLCmd {
 impl Into<u32> for DLCmd {
     fn into(self) -> u32 {
         self.0
+    }
+}
+
+impl Debug for DLCmd {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "DLCmd({:#010x})", self.0)
     }
 }
 
@@ -322,4 +337,161 @@ pub enum BitmapSizeFilter {
 pub enum BitmapWrapMode {
     Border = 0,
     Repeat = 1,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dlcmd() {
+        assert_eq!(
+            DLCmd::alpha_func(AlphaTestFunc::Greater, 254),
+            DLCmd::raw(0x090003fe),
+        );
+        assert_eq!(
+            DLCmd::alpha_func(AlphaTestFunc::Never, 0),
+            DLCmd::raw(0x09000000),
+        );
+        assert_eq!(
+            DLCmd::begin(GraphicsPrimitive::Bitmaps),
+            DLCmd::raw(0x1f000001),
+        );
+        assert_eq!(
+            DLCmd::begin(GraphicsPrimitive::Rects),
+            DLCmd::raw(0x1f000009),
+        );
+        assert_eq!(
+            DLCmd::bitmap_ext_format(BitmapExtFormat::ARGB1555),
+            DLCmd::raw(0x2e000000),
+        );
+        assert_eq!(
+            DLCmd::bitmap_ext_format(BitmapExtFormat::ARGB4),
+            DLCmd::raw(0x2e000006),
+        );
+        assert_eq!(
+            DLCmd::bitmap_ext_format(BitmapExtFormat::TextVGA),
+            DLCmd::raw(0x2e00000a),
+        );
+        assert_eq!(
+            DLCmd::bitmap_handle(BitmapHandle::force_raw(0)),
+            DLCmd::raw(0x05000000),
+        );
+        assert_eq!(
+            DLCmd::bitmap_handle(BitmapHandle::force_raw(15)),
+            DLCmd::raw(0x0500000f),
+        );
+        assert_eq!(
+            DLCmd::bitmap_handle(BitmapHandle::force_raw(31)),
+            DLCmd::raw(0x0500001f),
+        );
+        assert_eq!(
+            DLCmd::bitmap_layout(BitmapFormat::ARGB4, 255, 255),
+            DLCmd::raw(0x0731feff),
+        );
+        assert_eq!(
+            DLCmd::bitmap_layout(BitmapFormat::ARGB4, 1024, 768),
+            DLCmd::raw(0x07300100),
+        );
+        assert_eq!(DLCmd::bitmap_layout_h(255, 255), DLCmd::raw(0x28000000));
+        assert_eq!(DLCmd::bitmap_layout_h(1024, 768), DLCmd::raw(0x28000004));
+        assert_eq!(
+            DLCmd::bitmap_layout_pair(BitmapFormat::ARGB4, 255, 255),
+            (DLCmd::raw(0x0731feff), DLCmd::raw(0x28000000)),
+        );
+        assert_eq!(
+            DLCmd::bitmap_layout_pair(BitmapFormat::ARGB4, 1024, 768),
+            (DLCmd::raw(0x07300100), DLCmd::raw(0x28000004)),
+        );
+        assert_eq!(
+            DLCmd::bitmap_size(
+                255,
+                255,
+                BitmapSizeFilter::Nearest,
+                BitmapWrapMode::Border,
+                BitmapWrapMode::Border
+            ),
+            DLCmd::raw(0x0801feff),
+        );
+        assert_eq!(
+            DLCmd::bitmap_size(
+                2048,
+                2048,
+                BitmapSizeFilter::Nearest,
+                BitmapWrapMode::Border,
+                BitmapWrapMode::Border
+            ),
+            DLCmd::raw(0x08000000),
+        );
+        assert_eq!(
+            DLCmd::bitmap_size(
+                1024,
+                768,
+                BitmapSizeFilter::Nearest,
+                BitmapWrapMode::Border,
+                BitmapWrapMode::Border
+            ),
+            DLCmd::raw(0x08000100),
+        );
+        assert_eq!(
+            DLCmd::bitmap_size(
+                1,
+                1,
+                BitmapSizeFilter::Bilinear,
+                BitmapWrapMode::Border,
+                BitmapWrapMode::Border
+            ),
+            DLCmd::raw(0x08100201),
+        );
+        assert_eq!(
+            DLCmd::bitmap_size(
+                1,
+                1,
+                BitmapSizeFilter::Nearest,
+                BitmapWrapMode::Repeat,
+                BitmapWrapMode::Border
+            ),
+            DLCmd::raw(0x08080201),
+        );
+        assert_eq!(
+            DLCmd::bitmap_size(
+                1,
+                1,
+                BitmapSizeFilter::Nearest,
+                BitmapWrapMode::Border,
+                BitmapWrapMode::Repeat
+            ),
+            DLCmd::raw(0x08040201),
+        );
+        assert_eq!(
+            DLCmd::bitmap_size_pair(
+                255,
+                255,
+                BitmapSizeFilter::Nearest,
+                BitmapWrapMode::Border,
+                BitmapWrapMode::Border
+            ),
+            (DLCmd::raw(0x0801feff), DLCmd::raw(0x29000000))
+        );
+        assert_eq!(
+            DLCmd::bitmap_size_pair(
+                2048,
+                2048,
+                BitmapSizeFilter::Nearest,
+                BitmapWrapMode::Border,
+                BitmapWrapMode::Border
+            ),
+            (DLCmd::raw(0x08000000), DLCmd::raw(0x29000000)),
+        );
+        assert_eq!(
+            DLCmd::bitmap_size_pair(
+                1024,
+                768,
+                BitmapSizeFilter::Nearest,
+                BitmapWrapMode::Border,
+                BitmapWrapMode::Border
+            ),
+            (DLCmd::raw(0x08000100), DLCmd::raw(0x29000401)),
+        );
+    }
 }
