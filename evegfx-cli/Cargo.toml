@@ -1,0 +1,12 @@
+[package]
+name = "evegfx-cli"
+version = "0.1.0"
+authors = ["Martin Atkins <mart@degeneration.co.uk>"]
+edition = "2018"
+
+[dependencies]
+embedded-hal = "0.2.4"
+evegfx = { path = "../evegfx" }
+evegfx-spidriver = { path = "../evegfx-spidriver" }
+serial-embedded-hal = "0.1.2"
+spidriver = "0.1.0"
