@@ -5,3 +5,4 @@ authors = ["Martin Atkins <mart@degeneration.co.uk>"]
 edition = "2018"
 
 [dependencies]
+num_enum = "0.5.1"
