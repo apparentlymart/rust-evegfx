@@ -13,6 +13,14 @@ impl DLCmd {
     pub const fn raw(raw: u32) -> Self {
         Self(raw)
     }
+
+    pub const fn alpha_func(func: AlphaTestFunc, ref_val: u8) -> Self {
+        OpCode::ALPHA_FUNC.build((func as u32) << 8 | (ref_val as u32))
+    }
+
+    pub const fn begin(prim: GraphicsPrimitive) -> Self {
+        OpCode::BEGIN.build(prim as u32)
+    }
 }
 
 /// Each command is encoded as a four-byte value. Converting to `u32` returns
@@ -22,4 +30,49 @@ impl Into<u32> for DLCmd {
     fn into(self) -> u32 {
         self.0
     }
+}
+
+#[repr(u8)]
+enum OpCode {
+    ALPHA_FUNC = 0x09,
+    BEGIN = 0x1F,
+    BITMAP_HANDLE = 0x05,
+    BITMAP_LAYOUT = 0x07,
+    BITMAP_LAYOUT_H = 0x28,
+    BITMAP_SIZE = 0x08,
+}
+
+impl OpCode {
+    const fn shift(self) -> u32 {
+        (self as u32) << 24
+    }
+
+    const fn build(self, v: u32) -> DLCmd {
+        DLCmd::raw(self.shift() | v)
+    }
+}
+
+#[repr(u8)]
+pub enum GraphicsPrimitive {
+    Bitmaps = 1,
+    Points = 2,
+    Lines = 3,
+    LineStrip = 4,
+    EdgeStripR = 5,
+    EdgeStripL = 6,
+    EdgeStripA = 7,
+    EdgeStripB = 8,
+    Rects = 9,
+}
+
+#[repr(u8)]
+pub enum AlphaTestFunc {
+    Never = 0,
+    Less = 1,
+    LEqual = 2,
+    Greater = 3,
+    GEqual = 4,
+    Equal = 5,
+    NotEqual = 6,
+    Always = 7,
 }
