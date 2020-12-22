@@ -23,7 +23,7 @@ pub trait EVEInterface {
 /// An `EVEAddress` value is guaranteed to always be in the valid address
 /// range for EVE controllers, which is a 22-bit address space and thus
 /// the remaining high-order bits will always be zero.
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub struct EVEAddress(u32);
 
 impl EVEAddress {
@@ -132,7 +132,7 @@ impl From<EVEAddress> for u32 {
 /// An `EVECommand` is guaranteed to always be within the valid range of
 /// values for commands, although it may not necessarily match a particular
 /// valid command for the target chip.
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct EVECommand(u8);
 
 impl EVECommand {
@@ -180,5 +180,150 @@ impl TryFrom<u8> for EVECommand {
 impl From<EVECommand> for u8 {
     fn from(addr: EVECommand) -> u8 {
         addr.0
+    }
+}
+
+// We use std in test mode only, so we can do dynamic allocation in the mock
+// code.
+#[cfg(test)]
+pub mod testing {
+    extern crate std;
+
+    use super::{EVEAddress, EVECommand, EVEInterface};
+    use std::collections::HashMap;
+    use std::vec::Vec;
+
+    /// A test double for `trait Interface`, available only in test mode.
+    pub struct MockInterface {
+        // _mem is a sparse representation of the memory space which
+        // remembers what was written into it and returns 0xff if asked
+        // for an address that wasn't previously written.
+        _mem: HashMap<EVEAddress, u8>,
+
+        // if _fail is Some then the mock methods will call it and use the
+        // result to decide whether to return an error.
+        _fail: Option<fn(&MockInterfaceCall) -> bool>,
+
+        // _calls is the call log. Each call to a mock method appends one
+        // entry to this vector, including any that fail.
+        _calls: Vec<MockInterfaceCall>,
+    }
+
+    #[derive(Clone, Debug)]
+    pub enum MockInterfaceCall {
+        Write(EVEAddress, Vec<u8>),
+        Read(EVEAddress, usize),
+        Cmd(EVECommand, u8, u8),
+    }
+
+    impl MockInterface {
+        const DEFAULT_MEM_VALUE: u8 = 0xff;
+
+        pub fn new() -> Self {
+            Self {
+                _mem: HashMap::new(),
+                _fail: None,
+                _calls: Vec::new(),
+            }
+        }
+
+        /// Consumes the mock and returns all of the calls it logged
+        /// during its life.
+        pub fn calls(self) -> Vec<MockInterfaceCall> {
+            self._calls
+        }
+
+        // Copies some data into the fake memory without considering it
+        // to be a logged operation. This is intended for setting up
+        // memory ready for subsequent calls to `read`.
+        pub fn setup_mem(&mut self, addr: EVEAddress, buf: &[u8]) {
+            for (i, v) in buf.iter().enumerate() {
+                let e_addr = addr + (i as u32);
+                let v = *v; // Take a copy of the value from the input
+                if v == Self::DEFAULT_MEM_VALUE {
+                    self._mem.remove(&e_addr);
+                } else {
+                    self._mem.insert(e_addr, v);
+                }
+            }
+        }
+    }
+
+    impl EVEInterface for MockInterface {
+        type Error = ();
+        fn write(&mut self, addr: EVEAddress, buf: &[u8]) -> core::result::Result<(), ()> {
+            let log_buf = buf.to_vec();
+            let call = MockInterfaceCall::Write(addr, log_buf);
+            if let Some(fail) = self._fail {
+                if fail(&call) {
+                    self._calls.push(call);
+                    return Err(());
+                }
+            }
+            self._calls.push(call);
+
+            self.setup_mem(addr, buf);
+            Ok(())
+        }
+        fn read(&mut self, addr: EVEAddress, into: &mut [u8]) -> core::result::Result<(), ()> {
+            let call = MockInterfaceCall::Read(addr, into.len());
+            if let Some(fail) = self._fail {
+                if fail(&call) {
+                    self._calls.push(call);
+                    return Err(());
+                }
+            }
+            self._calls.push(call);
+
+            for i in 0..into.len() {
+                let e_addr = addr + (i as u32);
+                let v = self
+                    ._mem
+                    .get(&e_addr)
+                    .unwrap_or(&Self::DEFAULT_MEM_VALUE)
+                    .clone();
+                into[i] = v;
+            }
+            Ok(())
+        }
+        fn cmd(&mut self, cmd: EVECommand, a0: u8, a1: u8) -> core::result::Result<(), ()> {
+            let call = MockInterfaceCall::Cmd(cmd, a0, a1);
+            if let Some(fail) = self._fail {
+                if fail(&call) {
+                    self._calls.push(call);
+                    return Err(());
+                }
+            }
+            self._calls.push(call);
+            Ok(())
+        }
+    }
+
+    impl PartialEq for MockInterfaceCall {
+        fn eq(&self, other: &Self) -> bool {
+            match self {
+                MockInterfaceCall::Write(self_addr, self_data) => {
+                    if let MockInterfaceCall::Write(other_addr, other_data) = other {
+                        *self_addr == *other_addr && self_data.eq(other_data)
+                    } else {
+                        false
+                    }
+                }
+                MockInterfaceCall::Read(self_addr, self_len) => {
+                    if let MockInterfaceCall::Read(other_addr, other_len) = other {
+                        *self_addr == *other_addr && *self_len == *other_len
+                    } else {
+                        false
+                    }
+                }
+                MockInterfaceCall::Cmd(self_cmd, self_a0, self_a1) => {
+                    if let MockInterfaceCall::Cmd(other_cmd, other_a0, other_a1) = other {
+                        *self_cmd == *other_cmd && *self_a0 == *other_a0 && *self_a1 == *other_a1
+                    } else {
+                        false
+                    }
+                }
+            }
+        }
     }
 }

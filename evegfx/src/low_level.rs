@@ -39,18 +39,25 @@ impl<I: EVEInterface> EVELowLevel<I> {
         }
     }
 
+    /// Consumes the `EVELowLevel` object and returns the interface it was
+    /// originally created with.
+    pub fn take_interface(self) -> I {
+        self.raw
+    }
+
     pub fn wr8(&mut self, addr: EVEAddress, v: u8) -> Result<(), I::Error> {
         let data: [u8; 1] = [v];
         self.raw.write(addr, &data)
     }
 
     pub fn wr16(&mut self, addr: EVEAddress, v: u16) -> Result<(), I::Error> {
-        let data: [u8; 2] = [(v >> 8) as u8, v as u8];
+        let data: [u8; 2] = [v as u8, (v >> 8) as u8];
         self.raw.write(addr, &data)
     }
 
     pub fn wr32(&mut self, addr: EVEAddress, v: u32) -> Result<(), I::Error> {
-        let data: [u8; 4] = [(v >> 24) as u8, (v >> 16) as u8, (v >> 8) as u8, v as u8];
+        //let data: [u8; 4] = [(v >> 24) as u8, (v >> 16) as u8, (v >> 8) as u8, v as u8];
+        let data: [u8; 4] = [v as u8, (v >> 8) as u8, (v >> 16) as u8, (v >> 24) as u8];
         self.raw.write(addr, &data)
     }
 
@@ -67,16 +74,16 @@ impl<I: EVEInterface> EVELowLevel<I> {
     pub fn rd16(&mut self, addr: EVEAddress) -> Result<u16, I::Error> {
         let mut data: [u8; 2] = [0; 2];
         self.raw.read(addr, &mut data)?;
-        Ok((data[0] as u16) << 8 | (data[1] as u16))
+        Ok((data[0] as u16) | (data[1] as u16) << 8)
     }
 
     pub fn rd32(&mut self, addr: EVEAddress) -> Result<u32, I::Error> {
         let mut data: [u8; 4] = [0; 4];
         self.raw.read(addr, &mut data)?;
-        Ok((data[0] as u32) << 24
-            | (data[1] as u32) << 16
-            | (data[2] as u32) << 8
-            | (data[3] as u32))
+        Ok((data[0] as u32)
+            | (data[1] as u32) << 8
+            | (data[2] as u32) << 16
+            | (data[3] as u32) << 24)
     }
 
     pub fn rd8s(&mut self, addr: EVEAddress, into: &mut [u8]) -> Result<(), I::Error> {
@@ -105,5 +112,170 @@ impl<I: EVEInterface> EVELowLevel<I> {
             self.next_dl = RAM_DL + (RAM_DL_LEN - DLCmd::LENGTH);
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate std;
+
+    use super::*;
+    use crate::interface::testing::{MockInterface, MockInterfaceCall};
+    use core::convert::TryFrom;
+    use std::vec;
+
+    fn test_obj<F: FnOnce(&mut MockInterface)>(setup: F) -> EVELowLevel<MockInterface> {
+        let mut interface = MockInterface::new();
+        setup(&mut interface);
+        EVELowLevel::new(interface)
+    }
+
+    #[test]
+    fn test_wr8() {
+        let mut eve = test_obj(|_| {});
+        let addr = EVEAddress::force_raw(0x1f);
+        eve.wr8(addr, 0x34).unwrap();
+        let got = eve.take_interface().calls();
+        let want = vec![MockInterfaceCall::Write(addr, vec![0x34 as u8])];
+        assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
+    fn test_wr16() {
+        let mut eve = test_obj(|_| {});
+        let addr = EVEAddress::force_raw(0x2f);
+        eve.wr16(addr, 0x1234).unwrap();
+        let got = eve.take_interface().calls();
+        let want = vec![MockInterfaceCall::Write(addr, vec![0x34, 0x12 as u8])];
+        assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
+    fn test_wr32() {
+        let mut eve = test_obj(|_| {});
+        let addr = EVEAddress::force_raw(0x3f);
+        eve.wr32(addr, 0x12345678).unwrap();
+        let got = eve.take_interface().calls();
+        let want = vec![MockInterfaceCall::Write(
+            addr,
+            vec![0x78, 0x56, 0x34, 0x12 as u8],
+        )];
+        assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
+    fn test_wr8s() {
+        let mut eve = test_obj(|_| {});
+        let addr = EVEAddress::force_raw(0x3f);
+        let data = ['h' as u8, 'e' as u8, 'l' as u8, 'l' as u8, 'o' as u8];
+        eve.wr8s(addr, &data[..]).unwrap();
+        let got = eve.take_interface().calls();
+        let want = vec![MockInterfaceCall::Write(
+            addr,
+            vec!['h' as u8, 'e' as u8, 'l' as u8, 'l' as u8, 'o' as u8],
+        )];
+        assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
+    fn test_rd8() {
+        let addr = EVEAddress::force_raw(0x1f);
+        let mut eve = test_obj(|ei| {
+            let data = [0x34 as u8];
+            ei.setup_mem(addr, &data[..])
+        });
+        let got = eve.rd8(addr).unwrap();
+        assert_eq!(got, 0x34);
+
+        let got_calls = eve.take_interface().calls();
+        let want_calls = vec![MockInterfaceCall::Read(addr, 1)];
+        assert_eq!(&got_calls[..], &want_calls[..]);
+    }
+
+    #[test]
+    fn test_rd16() {
+        let addr = EVEAddress::force_raw(0x2f);
+        let mut eve = test_obj(|ei| {
+            let data = [0x12, 0x34 as u8];
+            ei.setup_mem(addr, &data[..])
+        });
+        let got = eve.rd16(addr).unwrap();
+        assert_eq!(got, 0x3412); // EVE is little-endian
+
+        let got_calls = eve.take_interface().calls();
+        let want_calls = vec![MockInterfaceCall::Read(addr, 2)];
+        assert_eq!(&got_calls[..], &want_calls[..]);
+    }
+
+    #[test]
+    fn test_rd32() {
+        let addr = EVEAddress::force_raw(0x3f);
+        let mut eve = test_obj(|ei| {
+            let data = [0x12, 0x34, 0x56, 0x78 as u8];
+            ei.setup_mem(addr, &data[..])
+        });
+        let got = eve.rd32(addr).unwrap();
+        assert_eq!(got, 0x78563412); // EVE is little-endian
+
+        let got_calls = eve.take_interface().calls();
+        let want_calls = vec![MockInterfaceCall::Read(addr, 4)];
+        assert_eq!(&got_calls[..], &want_calls[..]);
+    }
+
+    #[test]
+    fn test_rd8s() {
+        let addr = EVEAddress::force_raw(0x4f);
+        let orig_data = ['h' as u8, 'e' as u8, 'l' as u8, 'l' as u8, 'o' as u8];
+        let mut eve = test_obj(|ei| ei.setup_mem(addr, &orig_data[..]));
+        let mut read_data: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+        eve.rd8s(addr, &mut read_data).unwrap();
+
+        let want_data = [
+            // We read more than we wrote, so we'll see some default
+            // values here standing in for uninitialized memory.
+            'h' as u8, 'e' as u8, 'l' as u8, 'l' as u8, 'o' as u8, 0xff, 0xff, 0xff,
+        ];
+        assert_eq!(&read_data[..], &want_data[..]);
+
+        let got_calls = eve.take_interface().calls();
+        let want_calls = vec![MockInterfaceCall::Read(addr, 8)];
+        assert_eq!(&got_calls[..], &want_calls[..]);
+    }
+
+    #[test]
+    fn test_host_command() {
+        let mut eve = test_obj(|_| {});
+        let cmd = EVECommand::try_from(0x42 as u8).unwrap();
+        eve.host_command(cmd, 0x23, 0x45).unwrap();
+
+        let got_calls = eve.take_interface().calls();
+        let want_calls = vec![MockInterfaceCall::Cmd(cmd, 0x23, 0x45)];
+        assert_eq!(&got_calls[..], &want_calls[..]);
+    }
+
+    #[test]
+    fn test_dl() {
+        let mut eve = test_obj(|_| {});
+
+        eve.dl(DLCmd::begin(crate::display_list::GraphicsPrimitive::Points))
+            .unwrap();
+        eve.dl(DLCmd::alpha_func(
+            crate::display_list::AlphaTestFunc::Never,
+            3,
+        ))
+        .unwrap();
+        eve.dl_reset();
+        eve.dl(DLCmd::begin(
+            crate::display_list::GraphicsPrimitive::Bitmaps,
+        ))
+        .unwrap();
+
+        let got_calls = eve.take_interface().calls();
+        let want_calls = vec![
+            MockInterfaceCall::Write(RAM_DL + 0, vec![2, 0, 0, 31 as u8]),
+            MockInterfaceCall::Write(RAM_DL + 4, vec![3, 0, 0, 9 as u8]),
+            MockInterfaceCall::Write(RAM_DL + 0, vec![1, 0, 0, 31 as u8]),
+        ];
+        assert_eq!(&got_calls[..], &want_calls[..]);
     }
 }
