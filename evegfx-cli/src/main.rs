@@ -38,6 +38,22 @@ fn main() {
         evegfx::EVEGraphicsTimings::MODE_720P,
     )
     .unwrap();
+    eve.configure_video_pins(evegfx::EVERGBElectricalMode {
+        channel_bits: (8, 8, 8),
+        dither: false,
+        pclk_spread: true,
+    })
+    .unwrap();
+    eve.new_display_list(|b| {
+        b.clear_color_rgb(evegfx::color::EVEColorRGB {
+            r: 255,
+            g: 255,
+            b: 255,
+        })?;
+        b.clear_all()?;
+        b.display()
+    })
+    .unwrap();
     eve.start_video(evegfx::EVEGraphicsTimings::MODE_720P)
         .unwrap();
 }

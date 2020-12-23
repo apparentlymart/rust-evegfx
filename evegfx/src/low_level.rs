@@ -35,6 +35,10 @@ impl<I: EVEInterface> EVELowLevel<I> {
         self.raw
     }
 
+    pub fn borrow_interface<'a>(&'a mut self) -> &'a mut I {
+        &mut self.raw
+    }
+
     pub fn wr8(&mut self, addr: EVEAddress, v: u8) -> Result<(), I::Error> {
         let data: [u8; 1] = [v];
         self.raw.write(addr, &data)
@@ -103,6 +107,14 @@ impl<I: EVEInterface> EVELowLevel<I> {
                 EVEAddressRegion::RAM_DL + (EVEAddressRegion::RAM_DL.length - DLCmd::LENGTH);
         }
         Ok(())
+    }
+}
+
+impl<I: EVEInterface> crate::display_list::DLWrite for EVELowLevel<I> {
+    type Error = I::Error;
+
+    fn write_dl_cmd(&mut self, cmd: DLCmd) -> Result<(), I::Error> {
+        self.dl(cmd)
     }
 }
 

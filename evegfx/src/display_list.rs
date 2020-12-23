@@ -1,5 +1,6 @@
 use core::convert::TryFrom;
 use core::fmt::Debug;
+use core::marker::PhantomData;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 /// Represents an EVE display list command.
@@ -10,6 +11,9 @@ impl DLCmd {
     // The length of a display list command as stored in the EVE device's
     // display list RAM.
     pub const LENGTH: u32 = 4;
+
+    pub const DISPLAY: Self = OpCode::DISPLAY.build(0);
+    pub const CLEAR_ALL: Self = Self::clear(true, true, true);
 
     /// Creates a command from the raw command word given as a `u32`. It's
     /// the caller's responsibility to ensure that it's a valid encoding of
@@ -108,6 +112,90 @@ impl DLCmd {
             Self::bitmap_size_h(width, height),
         )
     }
+
+    pub const fn clear(color: bool, stencil: bool, tag: bool) -> Self {
+        OpCode::CLEAR.build(
+            if color { 0b100 } else { 0b000 }
+                | if stencil { 0b010 } else { 0b000 }
+                | if tag { 0b001 } else { 0b000 },
+        )
+    }
+
+    pub const fn clear_color_rgb(color: crate::color::EVEColorRGB) -> Self {
+        OpCode::CLEAR_COLOR_RGB
+            .build((color.r as u32) << 16 | (color.b as u32) << 8 | (color.g as u32) << 0)
+    }
+
+    pub const fn clear_color_alpha(alpha: u8) -> Self {
+        OpCode::CLEAR_COLOR_A.build(alpha as u32)
+    }
+
+    pub const fn clear_color_rgba_pair(color: crate::color::EVEColorRGBA) -> (Self, Self) {
+        (
+            Self::clear_color_rgb(color.as_rgb()),
+            Self::clear_color_alpha(color.a),
+        )
+    }
+
+    pub const fn display() -> Self {
+        Self::DISPLAY
+    }
+}
+
+/// DLBuilder is a helper for concisely building display lists. It's used only
+/// in conjunction with closure-based display-list-construction functions.
+pub struct DLBuilder<'a, W: DLWrite> {
+    w: &'a mut W,
+}
+
+impl<'a, W: DLWrite> DLBuilder<'a, W> {
+    pub(crate) fn new(writer: &'a mut W) -> Self {
+        Self { w: writer }
+    }
+
+    pub fn append(&mut self, cmd: DLCmd) -> Result<(), W::Error> {
+        self.w.write_dl_cmd(cmd)
+    }
+
+    pub fn raw(&mut self, raw: u32) -> Result<(), W::Error> {
+        self.append(DLCmd::raw(raw))
+    }
+
+    pub fn begin(&mut self, prim: GraphicsPrimitive) -> Result<(), W::Error> {
+        self.append(DLCmd::begin(prim))
+    }
+
+    pub fn clear(&mut self, color: bool, stencil: bool, tag: bool) -> Result<(), W::Error> {
+        self.append(DLCmd::clear(color, stencil, tag))
+    }
+
+    pub fn clear_all(&mut self) -> Result<(), W::Error> {
+        self.append(DLCmd::CLEAR_ALL)
+    }
+
+    pub fn clear_color_rgb(&mut self, color: crate::color::EVEColorRGB) -> Result<(), W::Error> {
+        self.append(DLCmd::clear_color_rgb(color))
+    }
+
+    pub fn clear_color_alpha(&mut self, alpha: u8) -> Result<(), W::Error> {
+        self.append(DLCmd::clear_color_alpha(alpha))
+    }
+
+    pub fn clear_color_rgba(&mut self, color: crate::color::EVEColorRGBA) -> Result<(), W::Error> {
+        let cmds = DLCmd::clear_color_rgba_pair(color);
+        self.append(cmds.0)?;
+        self.append(cmds.1)
+    }
+
+    pub fn display(&mut self) -> Result<(), W::Error> {
+        self.append(DLCmd::DISPLAY)
+    }
+}
+
+pub trait DLWrite {
+    type Error;
+
+    fn write_dl_cmd(&mut self, cmd: DLCmd) -> Result<(), Self::Error>;
 }
 
 /// Each command is encoded as a four-byte value. Converting to `u32` returns
@@ -137,6 +225,10 @@ enum OpCode {
     BITMAP_LAYOUT_H = 0x28,
     BITMAP_SIZE = 0x08,
     BITMAP_SIZE_H = 0x29,
+    CLEAR = 0x26,
+    CLEAR_COLOR_RGB = 0x02,
+    CLEAR_COLOR_A = 0x0F,
+    DISPLAY = 0x00,
 }
 
 impl OpCode {

@@ -1,5 +1,6 @@
 #![no_std]
 
+pub mod color;
 pub mod display_list;
 pub mod graphics_mode;
 pub mod host_commands;
@@ -8,7 +9,7 @@ pub mod interface;
 pub mod low_level;
 pub mod registers;
 
-pub use graphics_mode::EVEGraphicsTimings;
+pub use graphics_mode::{EVEGraphicsTimings, EVERGBElectricalMode};
 pub use init::EVEClockSource;
 pub use interface::EVEInterface;
 
@@ -28,14 +29,25 @@ impl<I: EVEInterface> EVE<I> {
     ///
     /// If this function succeeds then the system clock will be activated and
     /// the device will have begun (but not necessarily completed) its boot
-    /// process. The next step is usually to call `set_graphics_timings`
-    /// in order to configure the graphics mode and activate the video output.
-    pub fn start_system_clock<'a>(
-        &'a mut self,
+    /// process.
+    ///
+    /// The typical next steps are to first call `configure_video_pins` in
+    /// order to configure the physical characteristics of the Parallel RGB
+    /// interface, and then to call `start_video` to configure the video mode
+    /// and activate the pixel clock.
+    pub fn start_system_clock(
+        &mut self,
         source: init::EVEClockSource,
         mode: graphics_mode::EVEGraphicsTimings,
     ) -> Result<(), I::Error> {
         init::activate_system_clock(self, source, mode)
+    }
+
+    pub fn configure_video_pins(
+        &mut self,
+        mode: graphics_mode::EVERGBElectricalMode,
+    ) -> Result<(), I::Error> {
+        init::configure_video_pins(self, mode)
     }
 
     /// Configures registers to achieve a particular graphics mode with the
@@ -54,5 +66,16 @@ impl<I: EVEInterface> EVE<I> {
     /// returns, assuming that the chip itself was already activated.
     pub fn start_video(&mut self, c: graphics_mode::EVEGraphicsTimings) -> Result<(), I::Error> {
         init::activate_pixel_clock(self, c)
+    }
+
+    pub fn new_display_list<
+        F: FnOnce(&mut display_list::DLBuilder<low_level::EVELowLevel<I>>) -> Result<(), I::Error>,
+    >(
+        &mut self,
+        f: F,
+    ) -> Result<(), I::Error> {
+        self.ll.dl_reset();
+        let mut builder = display_list::DLBuilder::new(&mut self.ll);
+        f(&mut builder)
     }
 }

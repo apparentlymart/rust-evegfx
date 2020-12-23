@@ -68,3 +68,19 @@ pub(crate) fn activate_pixel_clock<I: EVEInterface>(
 
     Ok(())
 }
+
+pub(crate) fn configure_video_pins<I: EVEInterface>(
+    eve: &mut EVE<I>,
+    _mode: crate::graphics_mode::EVERGBElectricalMode,
+) -> Result<(), I::Error> {
+    // TODO: Actually respect the mode settings. For now, just hard-coded.
+    use crate::registers::EVERegister::*;
+
+    let ll = &mut eve.ll;
+
+    ll.wr8(SWIZZLE.into(), 0)?;
+    ll.wr8(PCLK_POL.into(), 1)?;
+    ll.wr8(CSPREAD.into(), 1)?;
+
+    Ok(())
+}
