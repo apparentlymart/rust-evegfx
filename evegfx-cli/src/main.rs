@@ -4,7 +4,9 @@
 // just a small test bed for trying out the library crates in practice.
 
 use evegfx::display_list::DLCmd;
+use evegfx::host_commands::EVEHostCmd;
 use evegfx::low_level::EVELowLevel;
+use evegfx::registers::EVERegister;
 use serial_embedded_hal::{PortSettings, Serial};
 use spidriver::SPIDriver;
 use std::path::Path;
@@ -34,6 +36,22 @@ fn main() {
     );
 
     let mut eve_ll = EVELowLevel::new(eve_interface);
+
+    eve_ll.host_command(EVEHostCmd::CLKEXT, 0, 0).unwrap();
+    eve_ll.host_command(EVEHostCmd::ACTIVE, 0, 0).unwrap();
+    eve_ll.wr16(EVERegister::HCYCLE.into(), 548).unwrap();
+    eve_ll.wr16(EVERegister::HOFFSET.into(), 43).unwrap();
+    eve_ll.wr16(EVERegister::HSYNC0.into(), 0).unwrap();
+    eve_ll.wr16(EVERegister::HSYNC1.into(), 41).unwrap();
+    eve_ll.wr16(EVERegister::VCYCLE.into(), 292).unwrap();
+    eve_ll.wr16(EVERegister::VOFFSET.into(), 12).unwrap();
+    eve_ll.wr16(EVERegister::VSYNC0.into(), 0).unwrap();
+    eve_ll.wr16(EVERegister::VSYNC1.into(), 10).unwrap();
+    eve_ll.wr16(EVERegister::SWIZZLE.into(), 0).unwrap();
+    eve_ll.wr16(EVERegister::PCLK_POL.into(), 1).unwrap();
+    eve_ll.wr16(EVERegister::CSPREAD.into(), 1).unwrap();
+    eve_ll.wr16(EVERegister::HSIZE.into(), 480).unwrap();
+    eve_ll.wr16(EVERegister::VSIZE.into(), 272).unwrap();
 
     for offset in 0..32 {
         let v = eve_ll
