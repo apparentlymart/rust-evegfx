@@ -125,7 +125,7 @@ impl Debug for DLCmd {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 #[allow(non_camel_case_types)]
 enum OpCode {

@@ -26,7 +26,13 @@ fn main() {
     let (tx, rx) = serial.split();
     let mut sd = SPIDriver::new(tx, rx);
     sd.unselect().unwrap();
-    let eve_interface = evegfx_spidriver::EVESPIDriverInterface::new(sd);
+    let mut eve_interface = evegfx_spidriver::EVESPIDriverInterface::new(sd);
+    let id_data = evegfx::interface::read_chip_id(&mut eve_interface).unwrap();
+    println!(
+        "Chip ID data is [{:#04x}, {:#04x}, {:#04x}, {:#04x}]",
+        id_data[0], id_data[1], id_data[2], id_data[3]
+    );
+
     let mut eve_ll = EVELowLevel::new(eve_interface);
 
     for offset in 0..32 {

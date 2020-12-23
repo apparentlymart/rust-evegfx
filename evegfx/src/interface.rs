@@ -283,6 +283,17 @@ impl EVECommand {
         (raw & 0b11000000) == 0b01000000
     }
 
+    /// Turns the given raw value into a valid EVECommand by masking out the
+    /// bits that are expected to be constant for all commands.
+    ///
+    /// This is intended primarily for initializing global constants
+    /// representing well-known commands from an EVE datasheet. If you pass
+    /// a value that isn't from a datasheet then the result is likely to
+    /// be garbage.
+    pub const fn force_raw(raw: u8) -> Self {
+        Self((raw & 0b00111111) | 0b01000000)
+    }
+
     /// Write the three bytes needed to form a command message into the given
     /// bytes. This is a helper for physical implementations that need to
     /// construct a message buffer to transmit to the real chip, e.g. via SPI.
@@ -326,6 +337,20 @@ impl From<EVECommand> for u8 {
     fn from(addr: EVECommand) -> u8 {
         addr.0
     }
+}
+
+/// Read the raw chip ID data from the given interface. This is a helper
+/// for callers of the lowest-level interface API. Higher layers may
+/// provide a more abstract form of this helper which interpret the raw
+/// ID data in some way.
+///
+/// The chip ID data is in the general RAM space, so you should read it
+/// only during early startup, before an application has potentially written
+/// other data over the top of it.
+pub fn read_chip_id<I: EVEInterface>(ei: &mut I) -> Result<[u8; 4], I::Error> {
+    let mut into: [u8; 4] = [0; 4];
+    ei.read(EVEAddress::force_raw(0xC0000), &mut into)?;
+    Ok(into)
 }
 
 // We use std in test mode only, so we can do dynamic allocation in the mock

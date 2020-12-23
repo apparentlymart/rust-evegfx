@@ -1,5 +1,6 @@
 use crate::display_list::DLCmd;
-use crate::interface::{EVEAddress, EVEAddressRegion, EVECommand, EVEInterface};
+use crate::host_commands::EVEHostCmd;
+use crate::interface::{EVEAddress, EVEAddressRegion, EVEInterface};
 
 /// `EVELowLevel` is a low-level interface to EVE controllers which matches
 /// the primitive operations used in Programmers Guides for the various
@@ -79,8 +80,8 @@ impl<I: EVEInterface> EVELowLevel<I> {
         self.raw.read(addr, into)
     }
 
-    pub fn host_command(&mut self, cmd: EVECommand, a0: u8, a1: u8) -> Result<(), I::Error> {
-        self.raw.cmd(cmd, a0, a1)
+    pub fn host_command(&mut self, cmd: EVEHostCmd, a0: u8, a1: u8) -> Result<(), I::Error> {
+        self.raw.cmd(cmd.for_interface(), a0, a1)
     }
 
     pub fn dl_reset(&mut self) {
@@ -111,7 +112,7 @@ mod tests {
 
     use super::*;
     use crate::interface::testing::{MockInterface, MockInterfaceCall};
-    use core::convert::TryFrom;
+    use crate::interface::{EVEAddress, EVEAddressRegion, EVECommand};
     use std::vec;
 
     fn test_obj<F: FnOnce(&mut MockInterface)>(setup: F) -> EVELowLevel<MockInterface> {
@@ -235,11 +236,14 @@ mod tests {
     #[test]
     fn test_host_command() {
         let mut eve = test_obj(|_| {});
-        let cmd = EVECommand::try_from(0x42 as u8).unwrap();
-        eve.host_command(cmd, 0x23, 0x45).unwrap();
+        eve.host_command(EVEHostCmd::ACTIVE, 0x23, 0x45).unwrap();
 
         let got_calls = eve.take_interface().calls();
-        let want_calls = vec![MockInterfaceCall::Cmd(cmd, 0x23, 0x45)];
+        let want_calls = vec![MockInterfaceCall::Cmd(
+            EVECommand::force_raw(0x00),
+            0x23,
+            0x45,
+        )];
         assert_eq!(&got_calls[..], &want_calls[..]);
     }
 
