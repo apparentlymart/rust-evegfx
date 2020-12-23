@@ -1,16 +1,5 @@
 use crate::display_list::DLCmd;
-use crate::interface::{EVEAddress, EVECommand, EVEInterface};
-
-pub const RAM_G: EVEAddress = EVEAddress::force_raw(0x000000);
-pub const RAM_G_LEN: u32 = 1024 << 10;
-pub const ROM: EVEAddress = EVEAddress::force_raw(0x200000);
-pub const ROM_LEN: u32 = 1024 << 10;
-pub const RAM_DL: EVEAddress = EVEAddress::force_raw(0x300000);
-pub const RAM_DL_LEN: u32 = 8 << 10;
-pub const RAM_REG: EVEAddress = EVEAddress::force_raw(0x302000);
-pub const RAM_REG_LEN: u32 = 4 << 10;
-pub const RAM_CMD: EVEAddress = EVEAddress::force_raw(0x302000);
-pub const RAM_CMD_LEN: u32 = 4 << 10;
+use crate::interface::{EVEAddress, EVEAddressRegion, EVECommand, EVEInterface};
 
 /// `EVELowLevel` is a low-level interface to EVE controllers which matches
 /// the primitive operations used in Programmers Guides for the various
@@ -35,7 +24,7 @@ impl<I: EVEInterface> EVELowLevel<I> {
     pub fn new(interface: I) -> Self {
         Self {
             raw: interface,
-            next_dl: RAM_DL,
+            next_dl: EVEAddressRegion::RAM_DL.base,
         }
     }
 
@@ -95,13 +84,13 @@ impl<I: EVEInterface> EVELowLevel<I> {
     }
 
     pub fn dl_reset(&mut self) {
-        self.next_dl = RAM_DL;
+        self.next_dl = EVEAddressRegion::RAM_DL.base;
     }
 
     pub fn dl(&mut self, cmd: DLCmd) -> Result<(), I::Error> {
         self.wr32(self.next_dl, cmd.into())?;
         self.next_dl += DLCmd::LENGTH; // ready for the next entry
-        if self.next_dl >= (RAM_DL + RAM_DL_LEN) {
+        if !EVEAddressRegion::RAM_DL.contains(self.next_dl) {
             // If the next write would be out of range then we'll undo
             // our increment and let the next write just overwrite the
             // final entry in the display list. This means that a well-behaved
@@ -109,7 +98,8 @@ impl<I: EVEInterface> EVELowLevel<I> {
             // command will still end up with that command at its end, even
             // though some of the commands were lost due to running out of
             // display list memory.
-            self.next_dl = RAM_DL + (RAM_DL_LEN - DLCmd::LENGTH);
+            self.next_dl =
+                EVEAddressRegion::RAM_DL + (EVEAddressRegion::RAM_DL.length - DLCmd::LENGTH);
         }
         Ok(())
     }
@@ -272,9 +262,9 @@ mod tests {
 
         let got_calls = eve.take_interface().calls();
         let want_calls = vec![
-            MockInterfaceCall::Write(RAM_DL + 0, vec![2, 0, 0, 31 as u8]),
-            MockInterfaceCall::Write(RAM_DL + 4, vec![3, 0, 0, 9 as u8]),
-            MockInterfaceCall::Write(RAM_DL + 0, vec![1, 0, 0, 31 as u8]),
+            MockInterfaceCall::Write(EVEAddressRegion::RAM_DL + 0, vec![2, 0, 0, 31 as u8]),
+            MockInterfaceCall::Write(EVEAddressRegion::RAM_DL + 4, vec![3, 0, 0, 9 as u8]),
+            MockInterfaceCall::Write(EVEAddressRegion::RAM_DL + 0, vec![1, 0, 0, 31 as u8]),
         ];
         assert_eq!(&got_calls[..], &want_calls[..]);
     }

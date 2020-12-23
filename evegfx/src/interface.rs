@@ -23,7 +23,7 @@ pub trait EVEInterface {
 /// An `EVEAddress` value is guaranteed to always be in the valid address
 /// range for EVE controllers, which is a 22-bit address space and thus
 /// the remaining high-order bits will always be zero.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Debug, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
 pub struct EVEAddress(u32);
 
 impl EVEAddress {
@@ -68,6 +68,25 @@ impl EVEAddress {
         into[1] = (self.0 >> 8) as u8;
         into[2] = (self.0 >> 0) as u8;
         into[3] = 0; // "dummy byte", per the datasheet
+    }
+}
+
+impl core::fmt::Debug for EVEAddress {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match EVEAddressRegion::containing_offset(*self) {
+            Some((region, offset)) => {
+                // If it's part of a known region then we'll show it as an
+                // offset from that region's base, because that avoids
+                // the need to memorize the memory map in order to
+                // understand what the address is pointing at.
+                write!(f, "({:?} + {:#x})", region, offset)
+            }
+            None => {
+                // Only 22 bits are meaningful, but since we're using hex
+                // here we'll show 24 bits worth of hex digits.
+                write!(f, "EVEAddress({:#08x})", self.0)
+            }
+        }
     }
 }
 
@@ -127,12 +146,132 @@ impl From<EVEAddress> for u32 {
     }
 }
 
+/// `EVEAddressRegion` represents a region in the EVE memory map.
+///
+/// While in principle an `EVEAddressRegion` value can represent any consecutive
+/// sequence of bytes in the memory space, the `EVEAddressRegion` values
+/// defined by this module all match physical regions in the system's memory
+/// map, as defined in the EVE datasheets.
+///
+/// Some EVE devices support an additional address range for external flash
+/// memory containing assets. That address space is not covered by `EVEAddress`
+/// and thus also not covered by an `EVEAddressRange`. It's used only as the
+/// source for static data such as bitmaps and audio.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct EVEAddressRegion {
+    pub base: EVEAddress,
+    pub length: u32,
+}
+
+impl EVEAddressRegion {
+    pub const RAM_G: Self = Self {
+        base: EVEAddress::force_raw(0x000000),
+        length: 1024 << 10,
+    };
+    pub const ROM: Self = Self {
+        base: EVEAddress::force_raw(0x200000),
+        length: 1024 << 10,
+    };
+    pub const RAM_DL: Self = Self {
+        base: EVEAddress::force_raw(0x300000),
+        length: 8 << 10,
+    };
+    pub const RAM_REG: Self = Self {
+        base: EVEAddress::force_raw(0x302000),
+        length: 4 << 10,
+    };
+    pub const RAM_CMD: Self = Self {
+        base: EVEAddress::force_raw(0x308000),
+        length: 4 << 10,
+    };
+
+    pub const fn contains(&self, addr: EVEAddress) -> bool {
+        addr.0 >= self.base.0 && addr.0 < (self.base.0 + self.length)
+    }
+
+    /// Returns the address of the given byte offset into the region, with
+    /// wrap-around within the region boundary if the offset is greater than
+    /// the region's length.
+    pub const fn offset(&self, offset: u32) -> EVEAddress {
+        let offset = offset % self.length;
+        EVEAddress::force_raw(self.base.0 + offset)
+    }
+
+    /// Returns the datasheet-defined region that contains the given address,
+    /// if any. Returns `None` if the address is not in one of the defined
+    /// ranges.
+    ///
+    /// This is primarily for debug purposes, and is not optimized for use in
+    /// normal code. To determine if an address belongs to a specific single
+    /// region, call `contains` on that region instead.
+    pub const fn containing(addr: EVEAddress) -> Option<Self> {
+        if Self::RAM_G.contains(addr) {
+            Some(Self::RAM_G)
+        } else if Self::RAM_DL.contains(addr) {
+            Some(Self::RAM_DL)
+        } else if Self::RAM_CMD.contains(addr) {
+            Some(Self::RAM_CMD)
+        } else if Self::RAM_REG.contains(addr) {
+            Some(Self::RAM_REG)
+        } else if Self::ROM.contains(addr) {
+            Some(Self::ROM)
+        } else {
+            None
+        }
+    }
+
+    /// Like `containing` but additionally returns the offset of the address
+    /// within the given region, if any. Adding the returned offset to the
+    /// returned region will recalculate the original address.
+    pub const fn containing_offset(addr: EVEAddress) -> Option<(Self, u32)> {
+        match Self::containing(addr) {
+            None => None,
+            Some(region) => Some((region, addr.0 - region.base.0)),
+        }
+    }
+}
+
+impl core::fmt::Debug for EVEAddressRegion {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match *self {
+            Self::RAM_G => {
+                write!(f, "EVEAddressRegion::RAM_G")
+            }
+            Self::RAM_DL => {
+                write!(f, "EVEAddressRegion::RAM_DL")
+            }
+            Self::RAM_CMD => {
+                write!(f, "EVEAddressRegion::RAM_CMD")
+            }
+            Self::RAM_REG => {
+                write!(f, "EVEAddressRegion::RAM_REG")
+            }
+            Self::ROM => {
+                write!(f, "EVEAddressRegion::ROM")
+            }
+            _ => f
+                .debug_struct("EVEAddressRegion")
+                .field("base", &self.base)
+                .field("length", &self.length)
+                .finish(),
+        }
+    }
+}
+
+impl core::ops::Add<u32> for EVEAddressRegion {
+    type Output = EVEAddress;
+
+    fn add(self, offset: u32) -> EVEAddress {
+        self.offset(offset)
+    }
+}
+
 /// `EVECommand` represents a command for an EVE controller chip.
 ///
 /// An `EVECommand` is guaranteed to always be within the valid range of
 /// values for commands, although it may not necessarily match a particular
 /// valid command for the target chip.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EVECommand(u8);
 
 impl EVECommand {
@@ -159,6 +298,12 @@ impl EVECommand {
         into[0] = self.0;
         into[1] = a0;
         into[2] = a1;
+    }
+}
+
+impl core::fmt::Debug for EVECommand {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "EVECommand({:#04x})", self.0)
     }
 }
 

@@ -31,23 +31,30 @@ fn main() {
 
     for offset in 0..32 {
         let v = eve_ll
-            .rd32(evegfx::low_level::RAM_DL + (offset * DLCmd::LENGTH))
+            .rd32(evegfx::interface::EVEAddressRegion::RAM_DL + (offset * DLCmd::LENGTH))
             .unwrap();
         println!("At DL {:#x} we have {:#x}", offset, v);
     }
 
     for offset in 0..32 {
         eve_ll
-            .wr8(evegfx::low_level::RAM_G + offset, offset as u8)
+            .wr8(
+                evegfx::interface::EVEAddressRegion::RAM_G + offset,
+                offset as u8,
+            )
             .unwrap();
     }
 
     for offset in 0..32 {
-        let v = eve_ll.rd8(evegfx::low_level::RAM_G + offset).unwrap();
+        let v = eve_ll
+            .rd8(evegfx::interface::EVEAddressRegion::RAM_G + offset)
+            .unwrap();
         println!("At G {:#x} we have {:#x}", offset, v);
     }
 
     let mut buf: [u8; 32] = [0; 32];
-    eve_ll.rd8s(evegfx::low_level::RAM_G, &mut buf).unwrap();
+    eve_ll
+        .rd8s(evegfx::interface::EVEAddressRegion::RAM_G + 0, &mut buf)
+        .unwrap();
     println!("In G we have {:?}", buf);
 }
