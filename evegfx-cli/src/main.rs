@@ -3,7 +3,8 @@
 // of interfaces (Linux spidev, SPIDriver adapter, etc). For now though it's
 // just a small test bed for trying out the library crates in practice.
 
-use evegfx::EVE;
+use evegfx::interface::{EVEAddress, EVECommand};
+use evegfx::{EVEInterface, EVE};
 use serial_embedded_hal::{PortSettings, Serial};
 use spidriver::SPIDriver;
 use std::path::Path;
@@ -26,6 +27,9 @@ fn main() {
     let mut sd = SPIDriver::new(tx, rx);
     sd.unselect().unwrap();
     let eve_interface = evegfx_spidriver::EVESPIDriverInterface::new(sd);
+    let mut eve_interface = LogInterface::new(eve_interface);
+    //eve_interface.set_fake_delay(std::time::Duration::from_millis(1000));
+    eve_interface.clear_fake_delay();
 
     println!("Starting the system clock...");
     let mut eve = EVE::new(eve_interface);
@@ -35,7 +39,11 @@ fn main() {
     )
     .unwrap();
     println!("Waiting for EVE boot...");
-    eve.poll_for_boot().unwrap();
+    let booted = eve.poll_for_boot(50).unwrap();
+    if !booted {
+        println!("EVE did not become ready");
+        return;
+    }
 
     println!("Configuring video pins...");
     eve.configure_video_pins(evegfx::EVERGBElectricalMode {
@@ -59,4 +67,94 @@ fn main() {
     eve.start_video(evegfx::EVEGraphicsTimings::MODE_720P)
         .unwrap();
     println!("All done!");
+}
+
+/// An `EVEInterface` that wraps another `EVEInterface` and then logs all
+/// of the operations on it, for debugging purposes.
+struct LogInterface<W: EVEInterface> {
+    w: W,
+    fake_delay: Option<std::time::Duration>,
+}
+
+impl<W: EVEInterface> LogInterface<W> {
+    pub fn new(wrapped: W) -> Self {
+        Self {
+            w: wrapped,
+            fake_delay: None,
+        }
+    }
+
+    pub fn handle<E>(
+        result: std::result::Result<(), E>,
+        delay: Option<std::time::Duration>,
+    ) -> std::result::Result<(), E> {
+        if let Some(dur) = delay {
+            std::thread::sleep(dur);
+        }
+        if let Err(err) = result {
+            println!("  FAILED!");
+            return Err(err);
+        }
+        result
+    }
+
+    pub fn set_fake_delay(&mut self, delay: std::time::Duration) {
+        self.fake_delay = Some(delay);
+    }
+
+    pub fn clear_fake_delay(&mut self) {
+        self.fake_delay = None;
+    }
+}
+
+impl<W: EVEInterface> EVEInterface for LogInterface<W> {
+    type Error = W::Error;
+
+    fn begin_write(&mut self, addr: EVEAddress) -> std::result::Result<(), Self::Error> {
+        println!("- begin_write({:?})", addr);
+        Self::handle(self.w.begin_write(addr), self.fake_delay)
+    }
+
+    fn continue_write(&mut self, v: &[u8]) -> std::result::Result<(), Self::Error> {
+        println!("- continue_write({:#x?})", v);
+        Self::handle(self.w.continue_write(v), self.fake_delay)
+    }
+
+    fn end_write(&mut self) -> std::result::Result<(), Self::Error> {
+        println!("- end_write()");
+        Self::handle(self.w.end_write(), self.fake_delay)
+    }
+
+    fn begin_read(&mut self, addr: EVEAddress) -> std::result::Result<(), Self::Error> {
+        println!("- begin_read({:?})", addr);
+        Self::handle(self.w.begin_read(addr), self.fake_delay)
+    }
+
+    fn continue_read(&mut self, into: &mut [u8]) -> std::result::Result<(), Self::Error> {
+        print!("- continue_read(");
+        let result = self.w.continue_read(into);
+        match result {
+            Ok(v) => {
+                println!("{:#x?})", into);
+                Self::handle(Ok(v), self.fake_delay)
+            }
+            Err(err) => {
+                println!("/* {:?} */)", into.len());
+                Self::handle(Err(err), self.fake_delay)
+            }
+        }
+    }
+
+    fn end_read(&mut self) -> std::result::Result<(), Self::Error> {
+        println!("- end_read()");
+        Self::handle(self.w.end_read(), self.fake_delay)
+    }
+
+    fn cmd(&mut self, cmd: EVECommand, a0: u8, a1: u8) -> std::result::Result<(), Self::Error> {
+        match evegfx::host_commands::EVEHostCmd::from_interface(cmd) {
+            Some(cmd) => println!("- cmd({:?}.into(), {:#04x}, {:#04x})", cmd, a0, a1),
+            None => println!("- cmd({:?}, {:#04x}, {:#04x})", cmd, a0, a1),
+        }
+        Self::handle(self.w.cmd(cmd, a0, a1), self.fake_delay)
+    }
 }

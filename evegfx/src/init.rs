@@ -44,17 +44,22 @@ pub(crate) fn activate_system_clock<I: EVEInterface>(
 }
 
 // Busy-waits until the IC signals that it's ready by responding to the
-// ID register. If there is no EVE connected, or if it fails to boot for
-// some reason, this will busy-wait forever.
-pub(crate) fn poll_for_boot<I: EVEInterface>(eve: &mut EVE<I>) -> Result<(), I::Error> {
+// ID register. Will poll the number of times given in `poll_limit` before
+// giving up and returning `Ok(false)`. Will return `Ok(true)` as soon as
+// a poll returns the ready value.
+pub(crate) fn poll_for_boot<I: EVEInterface>(
+    eve: &mut EVE<I>,
+    poll_limit: u32,
+) -> Result<bool, I::Error> {
     use crate::registers::EVERegister::*;
     let ll = &mut eve.ll;
-    loop {
+    for _ in 0..poll_limit {
         let v = ll.rd8(ID.into())?;
         if v == 0x7c {
-            return Ok(());
+            return Ok(true);
         }
     }
+    return Ok(false);
 }
 
 pub(crate) fn activate_pixel_clock<I: EVEInterface>(

@@ -296,7 +296,7 @@ impl EVECommand {
     pub fn is_valid(raw: u8) -> bool {
         // The two high-order bits must always be 0b01 in a command. Otherwise
         // it would be understood as either a write or read memory address.
-        (raw & 0b11000000) == 0b01000000
+        raw == 0 || (raw & 0b11000000) == 0b01000000
     }
 
     /// Turns the given raw value into a valid EVECommand by masking out the
@@ -307,7 +307,19 @@ impl EVECommand {
     /// a value that isn't from a datasheet then the result is likely to
     /// be garbage.
     pub const fn force_raw(raw: u8) -> Self {
+        if raw == 0 {
+            // The ACTIVE command is special in that it's encoded as all zeros,
+            // even though that doesn't match the normal pattern of commands
+            // always having 0b01 in their MSBs.
+            // (This is the same encoding as reading zero bytes from memory
+            // address zero.)
+            return Self(0);
+        }
         Self((raw & 0b00111111) | 0b01000000)
+    }
+
+    pub const fn raw(&self) -> u8 {
+        self.0
     }
 
     /// Write the three bytes needed to form a command message into the given

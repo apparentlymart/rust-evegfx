@@ -51,8 +51,8 @@ impl<I: EVEInterface> EVE<I> {
     /// If the connected device isn't an EVE, or if the chip isn't connected
     /// correctly, or if it's failing boot in some other way then this
     /// function will poll forever.
-    pub fn poll_for_boot(&mut self) -> Result<(), I::Error> {
-        init::poll_for_boot(self)
+    pub fn poll_for_boot(&mut self, poll_limit: u32) -> Result<bool, I::Error> {
+        init::poll_for_boot(self, poll_limit)
     }
 
     pub fn configure_video_pins(
