@@ -139,7 +139,11 @@ mod tests {
         let addr = EVEAddress::force_raw(0x1f);
         eve.wr8(addr, 0x34).unwrap();
         let got = eve.take_interface().calls();
-        let want = vec![MockInterfaceCall::Write(addr, vec![0x34 as u8])];
+        let want = vec![
+            MockInterfaceCall::BeginWrite(addr),
+            MockInterfaceCall::ContinueWrite(vec![0x34 as u8]),
+            MockInterfaceCall::EndWrite(addr),
+        ];
         assert_eq!(&got[..], &want[..]);
     }
 
@@ -149,7 +153,11 @@ mod tests {
         let addr = EVEAddress::force_raw(0x2f);
         eve.wr16(addr, 0x1234).unwrap();
         let got = eve.take_interface().calls();
-        let want = vec![MockInterfaceCall::Write(addr, vec![0x34, 0x12 as u8])];
+        let want = vec![
+            MockInterfaceCall::BeginWrite(addr),
+            MockInterfaceCall::ContinueWrite(vec![0x34, 0x12 as u8]),
+            MockInterfaceCall::EndWrite(addr),
+        ];
         assert_eq!(&got[..], &want[..]);
     }
 
@@ -159,10 +167,11 @@ mod tests {
         let addr = EVEAddress::force_raw(0x3f);
         eve.wr32(addr, 0x12345678).unwrap();
         let got = eve.take_interface().calls();
-        let want = vec![MockInterfaceCall::Write(
-            addr,
-            vec![0x78, 0x56, 0x34, 0x12 as u8],
-        )];
+        let want = vec![
+            MockInterfaceCall::BeginWrite(addr),
+            MockInterfaceCall::ContinueWrite(vec![0x78, 0x56, 0x34, 0x12 as u8]),
+            MockInterfaceCall::EndWrite(addr),
+        ];
         assert_eq!(&got[..], &want[..]);
     }
 
@@ -173,10 +182,13 @@ mod tests {
         let data = ['h' as u8, 'e' as u8, 'l' as u8, 'l' as u8, 'o' as u8];
         eve.wr8s(addr, &data[..]).unwrap();
         let got = eve.take_interface().calls();
-        let want = vec![MockInterfaceCall::Write(
-            addr,
-            vec!['h' as u8, 'e' as u8, 'l' as u8, 'l' as u8, 'o' as u8],
-        )];
+        let want = vec![
+            MockInterfaceCall::BeginWrite(addr),
+            MockInterfaceCall::ContinueWrite(vec![
+                'h' as u8, 'e' as u8, 'l' as u8, 'l' as u8, 'o' as u8,
+            ]),
+            MockInterfaceCall::EndWrite(addr),
+        ];
         assert_eq!(&got[..], &want[..]);
     }
 
@@ -191,7 +203,11 @@ mod tests {
         assert_eq!(got, 0x34);
 
         let got_calls = eve.take_interface().calls();
-        let want_calls = vec![MockInterfaceCall::Read(addr, 1)];
+        let want_calls = vec![
+            MockInterfaceCall::BeginRead(addr),
+            MockInterfaceCall::ContinueRead(1),
+            MockInterfaceCall::EndRead(addr),
+        ];
         assert_eq!(&got_calls[..], &want_calls[..]);
     }
 
@@ -206,7 +222,11 @@ mod tests {
         assert_eq!(got, 0x3412); // EVE is little-endian
 
         let got_calls = eve.take_interface().calls();
-        let want_calls = vec![MockInterfaceCall::Read(addr, 2)];
+        let want_calls = vec![
+            MockInterfaceCall::BeginRead(addr),
+            MockInterfaceCall::ContinueRead(2),
+            MockInterfaceCall::EndRead(addr),
+        ];
         assert_eq!(&got_calls[..], &want_calls[..]);
     }
 
@@ -221,7 +241,11 @@ mod tests {
         assert_eq!(got, 0x78563412); // EVE is little-endian
 
         let got_calls = eve.take_interface().calls();
-        let want_calls = vec![MockInterfaceCall::Read(addr, 4)];
+        let want_calls = vec![
+            MockInterfaceCall::BeginRead(addr),
+            MockInterfaceCall::ContinueRead(4),
+            MockInterfaceCall::EndRead(addr),
+        ];
         assert_eq!(&got_calls[..], &want_calls[..]);
     }
 
@@ -241,7 +265,11 @@ mod tests {
         assert_eq!(&read_data[..], &want_data[..]);
 
         let got_calls = eve.take_interface().calls();
-        let want_calls = vec![MockInterfaceCall::Read(addr, 8)];
+        let want_calls = vec![
+            MockInterfaceCall::BeginRead(addr),
+            MockInterfaceCall::ContinueRead(8),
+            MockInterfaceCall::EndRead(addr),
+        ];
         assert_eq!(&got_calls[..], &want_calls[..]);
     }
 
@@ -278,9 +306,15 @@ mod tests {
 
         let got_calls = eve.take_interface().calls();
         let want_calls = vec![
-            MockInterfaceCall::Write(EVEAddressRegion::RAM_DL + 0, vec![2, 0, 0, 31 as u8]),
-            MockInterfaceCall::Write(EVEAddressRegion::RAM_DL + 4, vec![3, 0, 0, 9 as u8]),
-            MockInterfaceCall::Write(EVEAddressRegion::RAM_DL + 0, vec![1, 0, 0, 31 as u8]),
+            MockInterfaceCall::BeginWrite(EVEAddressRegion::RAM_DL + 0),
+            MockInterfaceCall::ContinueWrite(vec![2, 0, 0, 31 as u8]),
+            MockInterfaceCall::EndWrite(EVEAddressRegion::RAM_DL + 0),
+            MockInterfaceCall::BeginWrite(EVEAddressRegion::RAM_DL + 4),
+            MockInterfaceCall::ContinueWrite(vec![3, 0, 0, 9 as u8]),
+            MockInterfaceCall::EndWrite(EVEAddressRegion::RAM_DL + 4),
+            MockInterfaceCall::BeginWrite(EVEAddressRegion::RAM_DL + 0),
+            MockInterfaceCall::ContinueWrite(vec![1, 0, 0, 31 as u8]),
+            MockInterfaceCall::EndWrite(EVEAddressRegion::RAM_DL + 0),
         ];
         assert_eq!(&got_calls[..], &want_calls[..]);
     }

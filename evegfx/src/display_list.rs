@@ -1,6 +1,5 @@
 use core::convert::TryFrom;
 use core::fmt::Debug;
-use core::marker::PhantomData;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 /// Represents an EVE display list command.

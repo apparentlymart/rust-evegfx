@@ -14,7 +14,6 @@ pub(crate) fn activate_system_clock<I: EVEInterface>(
 
     let ll = &mut eve.ll;
 
-    /*
     // Just in case the system was already activated before we were
     // called, we'll put it to sleep while we do our work here.
     ll.host_command(SLEEP, 0, 0)?;
@@ -34,7 +33,6 @@ pub(crate) fn activate_system_clock<I: EVEInterface>(
         let clksel = mode.sysclk_freq.cmd_clksel_args();
         ll.host_command(CLKSEL, clksel.0, clksel.1)?;
     }
-    */
 
     // Activate the system clock.
     ll.host_command(ACTIVE, 0, 0)?;

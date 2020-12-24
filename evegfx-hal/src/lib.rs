@@ -35,10 +35,18 @@ where
     where
         F: FnOnce(&mut Self) -> Result<R, <Self as EVEInterface>::Error>,
     {
-        <Self as EVEInterface>::Error::cs_result(self.cs.set_low())?;
+        self.spi_select()?;
         let result = func(self);
-        <Self as EVEInterface>::Error::cs_result(self.cs.set_high())?;
+        self.spi_unselect()?;
         result
+    }
+
+    fn spi_select(&mut self) -> Result<(), <Self as EVEInterface>::Error> {
+        <Self as EVEInterface>::Error::cs_result(self.cs.set_low())
+    }
+
+    fn spi_unselect(&mut self) -> Result<(), <Self as EVEInterface>::Error> {
+        <Self as EVEInterface>::Error::cs_result(self.cs.set_high())
     }
 
     fn spi_write(&mut self, words: &[u8]) -> Result<(), <Self as EVEInterface>::Error> {
@@ -76,23 +84,35 @@ where
 {
     type Error = EVEHALSPIError<<SPI as Write<u8>>::Error, <SPI as Transfer<u8>>::Error, CS::Error>;
 
-    fn write(&mut self, addr: EVEAddress, v: &[u8]) -> Result<(), Self::Error> {
-        self.with_cs(|ei| {
-            let mut addr_words: [u8; 3] = [0; 3];
-            addr.build_write_header(&mut addr_words);
-            ei.spi_write(&addr_words)?;
-            ei.spi_write(v)
-        })
+    fn begin_write(&mut self, addr: EVEAddress) -> Result<(), Self::Error> {
+        self.spi_select()?;
+        let mut addr_words: [u8; 3] = [0; 3];
+        addr.build_write_header(&mut addr_words);
+        self.spi_write(&addr_words)
     }
 
-    fn read(&mut self, addr: EVEAddress, into: &mut [u8]) -> Result<(), Self::Error> {
-        self.with_cs(|ei| {
-            let mut addr_words: [u8; 4] = [0; 4];
-            addr.build_read_header(&mut addr_words);
-            ei.spi_write(&addr_words)?;
-            ei.spi_transfer(into)?;
-            return Ok(());
-        })
+    fn continue_write(&mut self, v: &[u8]) -> Result<(), Self::Error> {
+        self.spi_write(v)
+    }
+
+    fn end_write(&mut self) -> Result<(), Self::Error> {
+        self.spi_unselect()
+    }
+
+    fn begin_read(&mut self, addr: EVEAddress) -> Result<(), Self::Error> {
+        self.spi_select()?;
+        let mut addr_words: [u8; 4] = [0; 4];
+        addr.build_read_header(&mut addr_words);
+        self.spi_write(&addr_words)
+    }
+
+    fn continue_read(&mut self, into: &mut [u8]) -> Result<(), Self::Error> {
+        self.spi_transfer(into)?;
+        Ok(())
+    }
+
+    fn end_read(&mut self) -> Result<(), Self::Error> {
+        self.spi_unselect()
     }
 
     fn cmd(&mut self, cmd: EVECommand, a0: u8, a1: u8) -> Result<(), Self::Error> {

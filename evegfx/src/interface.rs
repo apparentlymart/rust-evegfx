@@ -12,9 +12,25 @@ use core::convert::TryFrom;
 pub trait EVEInterface {
     type Error;
 
-    fn write(&mut self, addr: EVEAddress, v: &[u8]) -> Result<(), Self::Error>;
-    fn read(&mut self, addr: EVEAddress, into: &mut [u8]) -> Result<(), Self::Error>;
+    fn begin_write(&mut self, addr: EVEAddress) -> Result<(), Self::Error>;
+    fn begin_read(&mut self, addr: EVEAddress) -> Result<(), Self::Error>;
+    fn continue_write(&mut self, v: &[u8]) -> Result<(), Self::Error>;
+    fn continue_read(&mut self, into: &mut [u8]) -> Result<(), Self::Error>;
+    fn end_write(&mut self) -> Result<(), Self::Error>;
+    fn end_read(&mut self) -> Result<(), Self::Error>;
     fn cmd(&mut self, cmd: EVECommand, a0: u8, a1: u8) -> Result<(), Self::Error>;
+
+    fn write(&mut self, addr: EVEAddress, v: &[u8]) -> Result<(), Self::Error> {
+        self.begin_write(addr)?;
+        self.continue_write(v)?;
+        self.end_write()
+    }
+
+    fn read(&mut self, addr: EVEAddress, into: &mut [u8]) -> Result<(), Self::Error> {
+        self.begin_read(addr)?;
+        self.continue_read(into)?;
+        self.end_read()
+    }
 }
 
 /// `EVEAddress` represents a memory address in the memory map of an
@@ -365,6 +381,9 @@ pub mod testing {
 
     /// A test double for `trait Interface`, available only in test mode.
     pub struct MockInterface {
+        _write_addr: Option<EVEAddress>,
+        _read_addr: Option<EVEAddress>,
+
         // _mem is a sparse representation of the memory space which
         // remembers what was written into it and returns 0xff if asked
         // for an address that wasn't previously written.
@@ -381,8 +400,12 @@ pub mod testing {
 
     #[derive(Clone, Debug)]
     pub enum MockInterfaceCall {
-        Write(EVEAddress, Vec<u8>),
-        Read(EVEAddress, usize),
+        BeginWrite(EVEAddress),
+        ContinueWrite(Vec<u8>),
+        EndWrite(EVEAddress),
+        BeginRead(EVEAddress),
+        ContinueRead(usize),
+        EndRead(EVEAddress),
         Cmd(EVECommand, u8, u8),
     }
 
@@ -391,6 +414,8 @@ pub mod testing {
 
         pub fn new() -> Self {
             Self {
+                _write_addr: None,
+                _read_addr: None,
                 _mem: HashMap::new(),
                 _fail: None,
                 _calls: Vec::new(),
@@ -417,34 +442,77 @@ pub mod testing {
                 }
             }
         }
+
+        fn call_should_fail(&self, call: &MockInterfaceCall) -> bool {
+            if let Some(fail) = self._fail {
+                if fail(&call) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     impl EVEInterface for MockInterface {
         type Error = ();
-        fn write(&mut self, addr: EVEAddress, buf: &[u8]) -> core::result::Result<(), ()> {
+
+        fn begin_write(&mut self, addr: EVEAddress) -> core::result::Result<(), ()> {
+            let call = MockInterfaceCall::BeginWrite(addr);
+            if self.call_should_fail(&call) {
+                self._calls.push(call);
+                return Err(());
+            }
+            self._calls.push(call);
+            self._write_addr = Some(addr);
+            Ok(())
+        }
+
+        fn continue_write(&mut self, buf: &[u8]) -> core::result::Result<(), ()> {
             let log_buf = buf.to_vec();
-            let call = MockInterfaceCall::Write(addr, log_buf);
-            if let Some(fail) = self._fail {
-                if fail(&call) {
-                    self._calls.push(call);
-                    return Err(());
-                }
+            let call = MockInterfaceCall::ContinueWrite(log_buf);
+            if self.call_should_fail(&call) {
+                self._calls.push(call);
+                return Err(());
             }
             self._calls.push(call);
 
+            let addr = self._write_addr.unwrap();
             self.setup_mem(addr, buf);
             Ok(())
         }
-        fn read(&mut self, addr: EVEAddress, into: &mut [u8]) -> core::result::Result<(), ()> {
-            let call = MockInterfaceCall::Read(addr, into.len());
-            if let Some(fail) = self._fail {
-                if fail(&call) {
-                    self._calls.push(call);
-                    return Err(());
-                }
+
+        fn end_write(&mut self) -> core::result::Result<(), ()> {
+            let addr = self._write_addr.unwrap();
+            let call = MockInterfaceCall::EndWrite(addr);
+            if self.call_should_fail(&call) {
+                self._calls.push(call);
+                return Err(());
+            }
+            self._calls.push(call);
+            self._write_addr = None;
+            Ok(())
+        }
+
+        fn begin_read(&mut self, addr: EVEAddress) -> core::result::Result<(), ()> {
+            let call = MockInterfaceCall::BeginRead(addr);
+            if self.call_should_fail(&call) {
+                self._calls.push(call);
+                return Err(());
+            }
+            self._calls.push(call);
+            self._read_addr = Some(addr);
+            Ok(())
+        }
+
+        fn continue_read(&mut self, into: &mut [u8]) -> core::result::Result<(), ()> {
+            let call = MockInterfaceCall::ContinueRead(into.len());
+            if self.call_should_fail(&call) {
+                self._calls.push(call);
+                return Err(());
             }
             self._calls.push(call);
 
+            let addr = self._read_addr.unwrap();
             for i in 0..into.len() {
                 let e_addr = addr + (i as u32);
                 let v = self
@@ -456,6 +524,19 @@ pub mod testing {
             }
             Ok(())
         }
+
+        fn end_read(&mut self) -> core::result::Result<(), ()> {
+            let addr = self._read_addr.unwrap();
+            let call = MockInterfaceCall::EndRead(addr);
+            if self.call_should_fail(&call) {
+                self._calls.push(call);
+                return Err(());
+            }
+            self._calls.push(call);
+            self._read_addr = None;
+            Ok(())
+        }
+
         fn cmd(&mut self, cmd: EVECommand, a0: u8, a1: u8) -> core::result::Result<(), ()> {
             let call = MockInterfaceCall::Cmd(cmd, a0, a1);
             if let Some(fail) = self._fail {
@@ -472,16 +553,44 @@ pub mod testing {
     impl PartialEq for MockInterfaceCall {
         fn eq(&self, other: &Self) -> bool {
             match self {
-                MockInterfaceCall::Write(self_addr, self_data) => {
-                    if let MockInterfaceCall::Write(other_addr, other_data) = other {
-                        *self_addr == *other_addr && self_data.eq(other_data)
+                MockInterfaceCall::BeginWrite(self_addr) => {
+                    if let MockInterfaceCall::BeginWrite(other_addr) = other {
+                        *self_addr == *other_addr
                     } else {
                         false
                     }
                 }
-                MockInterfaceCall::Read(self_addr, self_len) => {
-                    if let MockInterfaceCall::Read(other_addr, other_len) = other {
-                        *self_addr == *other_addr && *self_len == *other_len
+                MockInterfaceCall::ContinueWrite(self_data) => {
+                    if let MockInterfaceCall::ContinueWrite(other_data) = other {
+                        self_data.eq(other_data)
+                    } else {
+                        false
+                    }
+                }
+                MockInterfaceCall::EndWrite(self_addr) => {
+                    if let MockInterfaceCall::EndWrite(other_addr) = other {
+                        *self_addr == *other_addr
+                    } else {
+                        false
+                    }
+                }
+                MockInterfaceCall::BeginRead(self_addr) => {
+                    if let MockInterfaceCall::BeginRead(other_addr) = other {
+                        *self_addr == *other_addr
+                    } else {
+                        false
+                    }
+                }
+                MockInterfaceCall::ContinueRead(self_len) => {
+                    if let MockInterfaceCall::ContinueRead(other_len) = other {
+                        *self_len == *other_len
+                    } else {
+                        false
+                    }
+                }
+                MockInterfaceCall::EndRead(self_addr) => {
+                    if let MockInterfaceCall::EndRead(other_addr) = other {
+                        *self_addr == *other_addr
                     } else {
                         false
                     }

@@ -39,23 +39,35 @@ where
 {
     type Error = spidriver::Error<TX::Error, RX::Error>;
 
-    fn write(&mut self, addr: EVEAddress, v: &[u8]) -> Result<(), Self::Error> {
-        self.with_cs(|ei| {
-            let mut addr_words: [u8; 3] = [0; 3];
-            addr.build_write_header(&mut addr_words);
-            ei.sd.write(&addr_words)?;
-            ei.sd.write(v)
-        })
+    fn begin_write(&mut self, addr: EVEAddress) -> Result<(), Self::Error> {
+        self.sd.select()?;
+        let mut addr_words: [u8; 3] = [0; 3];
+        addr.build_write_header(&mut addr_words);
+        self.sd.write(&addr_words)
     }
 
-    fn read(&mut self, addr: EVEAddress, into: &mut [u8]) -> Result<(), Self::Error> {
-        self.with_cs(|ei| {
-            let mut addr_words: [u8; 4] = [0; 4];
-            addr.build_read_header(&mut addr_words);
-            ei.sd.write(&addr_words)?;
-            ei.sd.transfer(into)?;
-            return Ok(());
-        })
+    fn continue_write(&mut self, v: &[u8]) -> Result<(), Self::Error> {
+        self.sd.write(v)
+    }
+
+    fn end_write(&mut self) -> Result<(), Self::Error> {
+        self.sd.unselect()
+    }
+
+    fn begin_read(&mut self, addr: EVEAddress) -> Result<(), Self::Error> {
+        self.sd.select()?;
+        let mut addr_words: [u8; 4] = [0; 4];
+        addr.build_read_header(&mut addr_words);
+        self.sd.write(&addr_words)
+    }
+
+    fn continue_read(&mut self, into: &mut [u8]) -> Result<(), Self::Error> {
+        self.sd.transfer(into)?;
+        Ok(())
+    }
+
+    fn end_read(&mut self) -> Result<(), Self::Error> {
+        self.sd.unselect()
     }
 
     fn cmd(&mut self, cmd: EVECommand, a0: u8, a1: u8) -> Result<(), Self::Error> {
