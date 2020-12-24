@@ -25,25 +25,26 @@ fn main() {
     let (tx, rx) = serial.split();
     let mut sd = SPIDriver::new(tx, rx);
     sd.unselect().unwrap();
-    let mut eve_interface = evegfx_spidriver::EVESPIDriverInterface::new(sd);
-    let id_data = evegfx::interface::read_chip_id(&mut eve_interface).unwrap();
-    println!(
-        "Chip ID data is [{:#04x}, {:#04x}, {:#04x}, {:#04x}]",
-        id_data[0], id_data[1], id_data[2], id_data[3]
-    );
+    let eve_interface = evegfx_spidriver::EVESPIDriverInterface::new(sd);
 
+    println!("Starting the system clock...");
     let mut eve = EVE::new(eve_interface);
     eve.start_system_clock(
         evegfx::EVEClockSource::Internal,
         evegfx::EVEGraphicsTimings::MODE_720P,
     )
     .unwrap();
+    println!("Waiting for EVE boot...");
+    eve.poll_for_boot().unwrap();
+
+    println!("Configuring video pins...");
     eve.configure_video_pins(evegfx::EVERGBElectricalMode {
         channel_bits: (8, 8, 8),
         dither: false,
         pclk_spread: true,
     })
     .unwrap();
+    println!("Sending initial display list...");
     eve.new_display_list(|b| {
         b.clear_color_rgb(evegfx::color::EVEColorRGB {
             r: 255,
@@ -54,6 +55,8 @@ fn main() {
         b.display()
     })
     .unwrap();
+    println!("Activating the pixel clock...");
     eve.start_video(evegfx::EVEGraphicsTimings::MODE_720P)
         .unwrap();
+    println!("All done!");
 }

@@ -29,7 +29,8 @@ impl<I: EVEInterface> EVE<I> {
     ///
     /// If this function succeeds then the system clock will be activated and
     /// the device will have begun (but not necessarily completed) its boot
-    /// process.
+    /// process. You could use the `poll_for_boot` method as an easy way to
+    /// wait for the device to become ready, albeit via busy-waiting.
     ///
     /// The typical next steps are to first call `configure_video_pins` in
     /// order to configure the physical characteristics of the Parallel RGB
@@ -41,6 +42,17 @@ impl<I: EVEInterface> EVE<I> {
         mode: graphics_mode::EVEGraphicsTimings,
     ) -> Result<(), I::Error> {
         init::activate_system_clock(self, source, mode)
+    }
+
+    /// Busy-waits while polling the EVE ID for its ID register. Once it
+    /// returns the expected value that indicates that the boot process
+    /// is complete and this function will return.
+    ///
+    /// If the connected device isn't an EVE, or if the chip isn't connected
+    /// correctly, or if it's failing boot in some other way then this
+    /// function will poll forever.
+    pub fn poll_for_boot(&mut self) -> Result<(), I::Error> {
+        init::poll_for_boot(self)
     }
 
     pub fn configure_video_pins(

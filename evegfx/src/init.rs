@@ -14,6 +14,7 @@ pub(crate) fn activate_system_clock<I: EVEInterface>(
 
     let ll = &mut eve.ll;
 
+    /*
     // Just in case the system was already activated before we were
     // called, we'll put it to sleep while we do our work here.
     ll.host_command(SLEEP, 0, 0)?;
@@ -33,11 +34,29 @@ pub(crate) fn activate_system_clock<I: EVEInterface>(
         let clksel = mode.sysclk_freq.cmd_clksel_args();
         ll.host_command(CLKSEL, clksel.0, clksel.1)?;
     }
+    */
 
     // Activate the system clock.
     ll.host_command(ACTIVE, 0, 0)?;
 
+    // Pulse the reset signal to the rest of the device.
+    ll.host_command(RST_PULSE, 0, 0)?;
+
     Ok(())
+}
+
+// Busy-waits until the IC signals that it's ready by responding to the
+// ID register. If there is no EVE connected, or if it fails to boot for
+// some reason, this will busy-wait forever.
+pub(crate) fn poll_for_boot<I: EVEInterface>(eve: &mut EVE<I>) -> Result<(), I::Error> {
+    use crate::registers::EVERegister::*;
+    let ll = &mut eve.ll;
+    loop {
+        let v = ll.rd8(ID.into())?;
+        if v == 0x7c {
+            return Ok(());
+        }
+    }
 }
 
 pub(crate) fn activate_pixel_clock<I: EVEInterface>(
