@@ -9,6 +9,27 @@ use serial_embedded_hal::{PortSettings, Serial};
 use spidriver::SPIDriver;
 use std::path::Path;
 
+const GAMEDUINO_HDMI_720P: evegfx::graphics_mode::EVEGraphicsTimings =
+    evegfx::graphics_mode::EVEGraphicsTimings {
+        sysclk_freq: evegfx::graphics_mode::ClockFrequency::F72MHz,
+        pclk_div: 1,
+        pclk_pol: evegfx::graphics_mode::ClockPolarity::RisingEdge,
+        horiz: evegfx::graphics_mode::EVEGraphicsModeDimension {
+            total: 1650,
+            offset: 260,
+            visible: 1280,
+            sync_start: 40,
+            sync_end: 0,
+        },
+        vert: evegfx::graphics_mode::EVEGraphicsModeDimension {
+            total: 750,
+            offset: 25,
+            visible: 720,
+            sync_start: 5,
+            sync_end: 0,
+        },
+    };
+
 fn main() {
     println!("Hello, world!");
 
@@ -31,26 +52,42 @@ fn main() {
     //eve_interface.set_fake_delay(std::time::Duration::from_millis(1000));
     eve_interface.clear_fake_delay();
 
-    /*
-    let mut ll = evegfx::low_level::EVELowLevel::new(eve_interface);
-    ll.host_command(evegfx::host_commands::EVEHostCmd::ACTIVE, 0, 0)
+    //let mut ll = evegfx::low_level::EVELowLevel::new(eve_interface);
+    /*ll.host_command(evegfx::host_commands::EVEHostCmd::ACTIVE, 0, 0)
         .unwrap();
     ll.host_command(evegfx::host_commands::EVEHostCmd::RST_PULSE, 0, 0)
         .unwrap();
     loop {
         let v = ll.rd16(EVEAddress::force_raw(0x302000)).unwrap();
         println!("Register contains {:#04x}", v);
-    }
-    return;
+    }*/
+    /*
+    show_register(&mut ll, evegfx::registers::EVERegister::FREQUENCY);
+    show_register(&mut ll, evegfx::registers::EVERegister::VSYNC0);
+    show_register(&mut ll, evegfx::registers::EVERegister::VSYNC1);
+    show_register(&mut ll, evegfx::registers::EVERegister::VSIZE);
+    show_register(&mut ll, evegfx::registers::EVERegister::VOFFSET);
+    show_register(&mut ll, evegfx::registers::EVERegister::VCYCLE);
+    show_register(&mut ll, evegfx::registers::EVERegister::HSYNC0);
+    show_register(&mut ll, evegfx::registers::EVERegister::HSYNC1);
+    show_register(&mut ll, evegfx::registers::EVERegister::HSIZE);
+    show_register(&mut ll, evegfx::registers::EVERegister::HOFFSET);
+    show_register(&mut ll, evegfx::registers::EVERegister::HCYCLE);
+    show_register(&mut ll, evegfx::registers::EVERegister::PCLK_POL);
+    show_register(&mut ll, evegfx::registers::EVERegister::PCLK);
+    show_register(&mut ll, evegfx::registers::EVERegister::OUTBITS);
+    show_register(&mut ll, evegfx::registers::EVERegister::DITHER);
+    show_register(&mut ll, evegfx::registers::EVERegister::GPIO);
+    show_register(&mut ll, evegfx::registers::EVERegister::CSPREAD);
+    show_register(&mut ll, evegfx::registers::EVERegister::ADAPTIVE_FRAMERATE);
     */
+    //show_current_dl(&mut ll);
+    //return;
 
     println!("Starting the system clock...");
     let mut eve = EVE::new(eve_interface);
-    eve.start_system_clock(
-        evegfx::EVEClockSource::Internal,
-        evegfx::EVEGraphicsTimings::MODE_720P,
-    )
-    .unwrap();
+    eve.start_system_clock(evegfx::EVEClockSource::Internal, GAMEDUINO_HDMI_720P)
+        .unwrap();
     println!("Waiting for EVE boot...");
     let booted = eve.poll_for_boot(50).unwrap();
     if !booted {
@@ -76,10 +113,59 @@ fn main() {
         b.display()
     })
     .unwrap();
+    eve.new_display_list(|b| {
+        b.clear_color_rgb(evegfx::color::EVEColorRGB {
+            r: 255,
+            g: 255,
+            b: 255,
+        })?;
+        b.clear_all()?;
+        b.display()
+    })
+    .unwrap();
     println!("Activating the pixel clock...");
     eve.start_video(evegfx::EVEGraphicsTimings::MODE_720P)
         .unwrap();
     println!("All done!");
+
+    /*
+    let ll = eve.borrow_low_level();
+    show_current_dl(ll);
+    */
+}
+
+fn show_register<I: EVEInterface>(
+    ll: &mut evegfx::low_level::EVELowLevel<I>,
+    reg: evegfx::registers::EVERegister,
+) {
+    let v = ll.rd32(reg.into()).unwrap_or(0xf33df4c3);
+    println!("Register {:?} contains {:#010x}", reg, v);
+}
+
+fn show_mem_rd32<I: EVEInterface>(
+    ll: &mut evegfx::low_level::EVELowLevel<I>,
+    addr: evegfx::interface::EVEAddress,
+) {
+    let v = ll.rd32(addr).unwrap_or(0xf33df4c3);
+    println!("At {:?} we have {:#010x}", addr, v);
+}
+
+fn show_current_dl<I: EVEInterface>(ll: &mut evegfx::low_level::EVELowLevel<I>) {
+    let mut offset = 0 as u32;
+    let base = evegfx::interface::EVEAddressRegion::RAM_DL.base;
+    let length = evegfx::interface::EVEAddressRegion::RAM_DL.length;
+    loop {
+        if offset >= length {
+            return;
+        }
+        let v = ll.rd32(base + offset).unwrap_or(0xf33df4c3);
+        println!("{:#06x}: {:#010x}", offset, v);
+        if (v & 0xff000000) == 0 {
+            // DISPLAY command ends the display list.
+            return;
+        }
+        offset += 4;
+    }
 }
 
 /// An `EVEInterface` that wraps another `EVEInterface` and then logs all

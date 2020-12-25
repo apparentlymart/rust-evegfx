@@ -12,6 +12,7 @@ impl DLCmd {
     pub const LENGTH: u32 = 4;
 
     pub const DISPLAY: Self = OpCode::DISPLAY.build(0);
+    pub const END: Self = OpCode::END.build(0);
     pub const CLEAR_ALL: Self = Self::clear(true, true, true);
 
     /// Creates a command from the raw command word given as a `u32`. It's
@@ -139,6 +140,10 @@ impl DLCmd {
     pub const fn display() -> Self {
         Self::DISPLAY
     }
+
+    pub const fn end() -> Self {
+        Self::END
+    }
 }
 
 /// DLBuilder is a helper for concisely building display lists. It's used only
@@ -189,6 +194,10 @@ impl<'a, W: DLWrite> DLBuilder<'a, W> {
     pub fn display(&mut self) -> Result<(), W::Error> {
         self.append(DLCmd::DISPLAY)
     }
+
+    pub fn end(&mut self) -> Result<(), W::Error> {
+        self.append(DLCmd::END)
+    }
 }
 
 pub trait DLWrite {
@@ -228,6 +237,7 @@ enum OpCode {
     CLEAR_COLOR_RGB = 0x02,
     CLEAR_COLOR_A = 0x0F,
     DISPLAY = 0x00,
+    END = 0x21,
 }
 
 impl OpCode {

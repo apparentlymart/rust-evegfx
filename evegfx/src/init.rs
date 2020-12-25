@@ -80,7 +80,7 @@ pub(crate) fn activate_pixel_clock<I: EVEInterface>(
 
     let ll = &mut eve.ll;
 
-    ll.wr32(FREQUENCY.into(), c.sysclk_freq.reg_frequency_value())?;
+    //ll.wr32(FREQUENCY.into(), c.sysclk_freq.reg_frequency_value())?;
 
     ll.wr16(VSYNC0.into(), c.vert.sync_start & DIM_MASK)?;
     ll.wr16(VSYNC1.into(), c.vert.sync_end & DIM_MASK)?;
@@ -111,9 +111,12 @@ pub(crate) fn configure_video_pins<I: EVEInterface>(
 
     let ll = &mut eve.ll;
 
+    ll.wr8(OUTBITS.into(), 0)?;
+    ll.wr8(DITHER.into(), 0)?;
     ll.wr8(SWIZZLE.into(), 0)?;
-    ll.wr8(PCLK_POL.into(), 1)?;
-    ll.wr8(CSPREAD.into(), 1)?;
+    ll.wr8(CSPREAD.into(), 0)?;
+    ll.wr8(ADAPTIVE_FRAMERATE.into(), 0)?;
+    ll.wr8(GPIO.into(), 0x83)?;
 
     Ok(())
 }

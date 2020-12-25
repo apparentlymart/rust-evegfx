@@ -24,6 +24,25 @@ impl<I: EVEInterface> EVE<I> {
         }
     }
 
+    /// Consumes the `EVE` object and returns its underlying interface.
+    pub fn take_interface(self) -> I {
+        self.ll.take_interface()
+    }
+
+    pub fn borrow_interface<'a>(&'a mut self) -> &'a mut I {
+        self.ll.borrow_interface()
+    }
+
+    /// Consumes the `EVE` object and returns an instance of `EVELowLevel`
+    /// that uses the same interface.
+    pub fn take_low_level(self) -> low_level::EVELowLevel<I> {
+        self.ll
+    }
+
+    pub fn borrow_low_level<'a>(&'a mut self) -> &'a mut low_level::EVELowLevel<I> {
+        &mut self.ll
+    }
+
     /// Sends commands to the device to configure and then activate the system
     /// clock.
     ///
@@ -88,6 +107,8 @@ impl<I: EVEInterface> EVE<I> {
     ) -> Result<(), I::Error> {
         self.ll.dl_reset();
         let mut builder = display_list::DLBuilder::new(&mut self.ll);
-        f(&mut builder)
+        f(&mut builder)?;
+        self.ll
+            .wr8(registers::EVERegister::DLSWAP.into(), 0b00000010)
     }
 }
