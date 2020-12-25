@@ -53,11 +53,20 @@ pub(crate) fn poll_for_boot<I: EVEInterface>(
 ) -> Result<bool, I::Error> {
     use crate::registers::EVERegister::*;
     let ll = &mut eve.ll;
-    for _ in 0..poll_limit {
+    let mut poll = 0;
+    while poll < poll_limit {
         let v = ll.rd8(ID.into())?;
         if v == 0x7c {
+            break;
+        }
+        poll += 1;
+    }
+    while poll < poll_limit {
+        let v = ll.rd8(CPURESET.into())?;
+        if v == 0x00 {
             return Ok(true);
         }
+        poll += 1;
     }
     return Ok(false);
 }
@@ -70,6 +79,8 @@ pub(crate) fn activate_pixel_clock<I: EVEInterface>(
     const DIM_MASK: u16 = crate::graphics_mode::DIMENSION_MASK;
 
     let ll = &mut eve.ll;
+
+    ll.wr32(FREQUENCY.into(), c.sysclk_freq.reg_frequency_value())?;
 
     ll.wr16(VSYNC0.into(), c.vert.sync_start & DIM_MASK)?;
     ll.wr16(VSYNC1.into(), c.vert.sync_end & DIM_MASK)?;

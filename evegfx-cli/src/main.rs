@@ -31,6 +31,19 @@ fn main() {
     //eve_interface.set_fake_delay(std::time::Duration::from_millis(1000));
     eve_interface.clear_fake_delay();
 
+    /*
+    let mut ll = evegfx::low_level::EVELowLevel::new(eve_interface);
+    ll.host_command(evegfx::host_commands::EVEHostCmd::ACTIVE, 0, 0)
+        .unwrap();
+    ll.host_command(evegfx::host_commands::EVEHostCmd::RST_PULSE, 0, 0)
+        .unwrap();
+    loop {
+        let v = ll.rd16(EVEAddress::force_raw(0x302000)).unwrap();
+        println!("Register contains {:#04x}", v);
+    }
+    return;
+    */
+
     println!("Starting the system clock...");
     let mut eve = EVE::new(eve_interface);
     eve.start_system_clock(

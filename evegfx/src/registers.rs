@@ -6,7 +6,9 @@ use crate::interface::{EVEAddress, EVEAddressRegion};
 #[allow(non_camel_case_types)]
 pub enum EVERegister {
     ID = 0x00,
+    CPURESET = 0x20,
     CSPREAD = 0x68,
+    FREQUENCY = 0x0c,
     HCYCLE = 0x2c,
     HOFFSET = 0x30,
     HSIZE = 0x34,

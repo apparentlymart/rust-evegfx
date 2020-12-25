@@ -70,7 +70,7 @@ impl EVEAddress {
     /// physical implementations that need to construct a message
     /// buffer to transmit to the real chip, e.g. via SPI.
     pub fn build_write_header(self, into: &mut [u8; 3]) {
-        into[0] = ((self.0 >> 16) & 0b00111111) as u8;
+        into[0] = (((self.0 >> 16) & 0b00111111) | 0b10000000) as u8;
         into[1] = (self.0 >> 8) as u8;
         into[2] = (self.0 >> 0) as u8;
     }
@@ -80,7 +80,7 @@ impl EVEAddress {
     /// physical implementations that need to construct a message
     /// buffer to transmit to the real chip, e.g. via SPI.
     pub fn build_read_header(self, into: &mut [u8; 4]) {
-        into[0] = (((self.0 >> 16) & 0b00111111) | 0b10000000) as u8;
+        into[0] = ((self.0 >> 16) & 0b00111111) as u8;
         into[1] = (self.0 >> 8) as u8;
         into[2] = (self.0 >> 0) as u8;
         into[3] = 0; // "dummy byte", per the datasheet
