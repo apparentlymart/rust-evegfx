@@ -144,6 +144,16 @@ impl DLCmd {
     pub const fn end() -> Self {
         Self::END
     }
+
+    pub const fn point_size(size: u16) -> Self {
+        const MASK: u32 = 0b0000111111111111;
+        OpCode::POINT_SIZE.build(size as u32 & MASK)
+    }
+
+    pub const fn vertex2f(x: u16, y: u16) -> Self {
+        const MASK: u32 = 0b01111111111111111;
+        OpCode::VERTEX2F.build((x as u32 & MASK) << 15 | (y as u32 & MASK))
+    }
 }
 
 /// DLBuilder is a helper for concisely building display lists. It's used only
@@ -198,6 +208,14 @@ impl<'a, W: DLWrite> DLBuilder<'a, W> {
     pub fn end(&mut self) -> Result<(), W::Error> {
         self.append(DLCmd::END)
     }
+
+    pub fn point_size(&mut self, size: u16) -> Result<(), W::Error> {
+        self.append(DLCmd::point_size(size))
+    }
+
+    pub fn vertex2f(&mut self, x: u16, y: u16) -> Result<(), W::Error> {
+        self.append(DLCmd::vertex2f(x, y))
+    }
 }
 
 pub trait DLWrite {
@@ -238,6 +256,8 @@ enum OpCode {
     CLEAR_COLOR_A = 0x0F,
     DISPLAY = 0x00,
     END = 0x21,
+    POINT_SIZE = 0x0d,
+    VERTEX2F = 0b01000000, // This opcode is packed into the two MSB
 }
 
 impl OpCode {

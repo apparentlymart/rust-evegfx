@@ -120,12 +120,14 @@ fn main() {
     })
     .unwrap();
     eve.new_display_list(|b| {
-        b.clear_color_rgb(evegfx::color::EVEColorRGB {
-            r: 255,
-            g: 255,
-            b: 255,
-        })?;
+        b.clear_color_rgb(evegfx::color::EVEColorRGB { r: 0, g: 0, b: 10 })?;
         b.clear_all()?;
+        b.begin(evegfx::display_list::GraphicsPrimitive::Points)?;
+        b.point_size(100)?;
+        b.vertex2f(1000, 1000)?;
+        b.vertex2f(2000, 2000)?;
+        b.vertex2f(3000, 3000)?;
+        b.vertex2f(4000, 4000)?;
         b.display()
     })
     .unwrap();
