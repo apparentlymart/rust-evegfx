@@ -14,6 +14,11 @@ pub(crate) fn activate_system_clock<I: EVEInterface>(
 
     let ll = &mut eve.ll;
 
+    {
+        let ei = ll.borrow_interface();
+        ei.reset()?;
+    };
+
     // Just in case the system was already activated before we were
     // called, we'll put it to sleep while we do our work here.
     ll.host_command(SLEEP, 0, 0)?;
@@ -80,7 +85,7 @@ pub(crate) fn activate_pixel_clock<I: EVEInterface>(
 
     let ll = &mut eve.ll;
 
-    //ll.wr32(FREQUENCY.into(), c.sysclk_freq.reg_frequency_value())?;
+    ll.wr32(FREQUENCY.into(), c.sysclk_freq.reg_frequency_value())?;
 
     ll.wr16(VSYNC0.into(), c.vert.sync_start & DIM_MASK)?;
     ll.wr16(VSYNC1.into(), c.vert.sync_end & DIM_MASK)?;

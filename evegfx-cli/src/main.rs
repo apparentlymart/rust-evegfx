@@ -52,15 +52,20 @@ fn main() {
     //eve_interface.set_fake_delay(std::time::Duration::from_millis(1000));
     eve_interface.clear_fake_delay();
 
+    //eve_interface.reset().unwrap();
     //let mut ll = evegfx::low_level::EVELowLevel::new(eve_interface);
-    /*ll.host_command(evegfx::host_commands::EVEHostCmd::ACTIVE, 0, 0)
+    /*
+    ll.host_command(evegfx::host_commands::EVEHostCmd::ACTIVE, 0, 0)
         .unwrap();
     ll.host_command(evegfx::host_commands::EVEHostCmd::RST_PULSE, 0, 0)
         .unwrap();
+    */
+    /*
     loop {
         let v = ll.rd16(EVEAddress::force_raw(0x302000)).unwrap();
         println!("Register contains {:#04x}", v);
-    }*/
+    }
+    */
     /*
     show_register(&mut ll, evegfx::registers::EVERegister::FREQUENCY);
     show_register(&mut ll, evegfx::registers::EVERegister::VSYNC0);
@@ -84,9 +89,10 @@ fn main() {
     //show_current_dl(&mut ll);
     //return;
 
-    println!("Starting the system clock...");
+    const TIMINGS: evegfx::graphics_mode::EVEGraphicsTimings = GAMEDUINO_HDMI_720P;
+
     let mut eve = EVE::new(eve_interface);
-    eve.start_system_clock(evegfx::EVEClockSource::Internal, GAMEDUINO_HDMI_720P)
+    eve.start_system_clock(evegfx::EVEClockSource::Internal, TIMINGS)
         .unwrap();
     println!("Waiting for EVE boot...");
     let booted = eve.poll_for_boot(50).unwrap();
@@ -124,8 +130,7 @@ fn main() {
     })
     .unwrap();
     println!("Activating the pixel clock...");
-    eve.start_video(evegfx::EVEGraphicsTimings::MODE_720P)
-        .unwrap();
+    eve.start_video(TIMINGS).unwrap();
     println!("All done!");
 
     /*
@@ -209,8 +214,13 @@ impl<W: EVEInterface> LogInterface<W> {
 impl<W: EVEInterface> EVEInterface for LogInterface<W> {
     type Error = W::Error;
 
+    fn reset(&mut self) -> std::result::Result<(), Self::Error> {
+        println!("- reset()");
+        Self::handle(self.w.reset(), self.fake_delay)
+    }
+
     fn begin_write(&mut self, addr: EVEAddress) -> std::result::Result<(), Self::Error> {
-        println!("- begin_write({:?})", addr);
+        println!("- begin_write(/*{:#08x?}*/ {:?})", addr.raw(), addr);
         Self::handle(self.w.begin_write(addr), self.fake_delay)
     }
 
@@ -225,7 +235,7 @@ impl<W: EVEInterface> EVEInterface for LogInterface<W> {
     }
 
     fn begin_read(&mut self, addr: EVEAddress) -> std::result::Result<(), Self::Error> {
-        println!("- begin_read({:?})", addr);
+        println!("- begin_read(/*{:#08x?}*/ {:?})", addr.raw(), addr);
         Self::handle(self.w.begin_read(addr), self.fake_delay)
     }
 
@@ -251,7 +261,13 @@ impl<W: EVEInterface> EVEInterface for LogInterface<W> {
 
     fn cmd(&mut self, cmd: EVECommand, a0: u8, a1: u8) -> std::result::Result<(), Self::Error> {
         match evegfx::host_commands::EVEHostCmd::from_interface(cmd) {
-            Some(cmd) => println!("- cmd({:?}.into(), {:#04x}, {:#04x})", cmd, a0, a1),
+            Some(cmd) => println!(
+                "- cmd(/*{:#04x?}*/ {:?}.into(), {:#04x}, {:#04x})",
+                cmd.for_interface().raw(),
+                cmd,
+                a0,
+                a1
+            ),
             None => println!("- cmd({:?}, {:#04x}, {:#04x})", cmd, a0, a1),
         }
         Self::handle(self.w.cmd(cmd, a0, a1), self.fake_delay)

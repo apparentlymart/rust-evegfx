@@ -39,6 +39,11 @@ where
 {
     type Error = spidriver::Error<TX::Error, RX::Error>;
 
+    fn reset(&mut self) -> Result<(), Self::Error> {
+        // Just make sure we we're not already asserting CS.
+        self.sd.unselect()
+    }
+
     fn begin_write(&mut self, addr: EVEAddress) -> Result<(), Self::Error> {
         self.sd.select()?;
         let mut addr_words: [u8; 3] = [0; 3];

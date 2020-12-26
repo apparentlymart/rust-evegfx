@@ -20,6 +20,10 @@ pub trait EVEInterface {
     fn end_read(&mut self) -> Result<(), Self::Error>;
     fn cmd(&mut self, cmd: EVECommand, a0: u8, a1: u8) -> Result<(), Self::Error>;
 
+    fn reset(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
     fn write(&mut self, addr: EVEAddress, v: &[u8]) -> Result<(), Self::Error> {
         self.begin_write(addr)?;
         self.continue_write(v)?;
@@ -63,6 +67,10 @@ impl EVEAddress {
     /// range.
     pub const fn force_raw(raw: u32) -> Self {
         Self(raw & Self::MASK)
+    }
+
+    pub const fn raw(self) -> u32 {
+        self.0
     }
 
     /// Write the three bytes needed to form a "write memory" header
@@ -158,7 +166,7 @@ impl core::ops::SubAssign<u32> for EVEAddress {
 /// be zero.
 impl From<EVEAddress> for u32 {
     fn from(addr: EVEAddress) -> u32 {
-        addr.0
+        addr.raw()
     }
 }
 

@@ -1,8 +1,10 @@
+#[derive(Debug)]
 pub struct EVEGraphicsMode {
     pub timings: EVEGraphicsTimings,
     pub electrical: EVERGBElectricalMode,
 }
 
+#[derive(Debug)]
 pub struct EVEGraphicsTimings {
     pub sysclk_freq: ClockFrequency,
     pub pclk_div: u8,
@@ -11,6 +13,7 @@ pub struct EVEGraphicsTimings {
     pub vert: EVEGraphicsModeDimension,
 }
 
+#[derive(Debug)]
 pub struct EVEGraphicsModeDimension {
     pub total: u16,
     pub visible: u16,
@@ -19,6 +22,7 @@ pub struct EVEGraphicsModeDimension {
     pub sync_end: u16,
 }
 
+#[derive(Debug)]
 pub struct EVERGBElectricalMode {
     pub pclk_spread: bool,
     pub channel_bits: (u8, u8, u8),
@@ -60,7 +64,7 @@ impl EVEGraphicsModeDimension {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ClockPolarity {
     RisingEdge,
     FallingEdge,
@@ -75,7 +79,7 @@ impl ClockPolarity {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ClockFrequency {
     F24MHz,
     F36MHz,
