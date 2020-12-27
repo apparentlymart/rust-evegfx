@@ -47,9 +47,21 @@ impl<I: EVEInterface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
             known_space: 0,
         };
 
+        // We use a "stopped stream" marker to help ensure correct discipline
+        // around which actions must be taken with the stream active or
+        // stopped, but we need to get that process started here by minting
+        // our first "stopped stream" token to represent that the stream
+        // isn't running until we call start_stream for the first time below.
+        let stopped = StoppedStream;
+
         // Copy the current values for free space and next offset into our
         // local fields so we will start off in sync with the remote chip.
-        ret.synchronize()?;
+        ret.synchronize(&stopped)?;
+
+        // We keep our write transaction open any time we're not
+        // resynchronizing or waiting, since that allows us to burst writes
+        // into the command FIFO.
+        ret.start_stream(stopped)?;
 
         Ok(ret)
     }
@@ -152,8 +164,9 @@ impl<I: EVEInterface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
     ///
     /// To make temporary use of the underlying interface, without also
     /// discarding the coprocessor object, use `with_interface` instead.
-    pub fn take_interface(self) -> I {
-        return self.ll.take_interface();
+    pub fn take_interface(mut self) -> Result<I, EVECoprocessorError<Self>> {
+        self.stop_stream()?;
+        return Ok(self.ll.take_interface());
     }
 
     /// `with_interface` runs your given closure with access to the
@@ -164,42 +177,63 @@ impl<I: EVEInterface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
         &mut self,
         f: F,
     ) -> Result<R, EVECoprocessorError<Self>> {
+        let stopped = self.stop_stream()?;
         let result = {
             let ei = self.ll.borrow_interface();
             f(ei)
         };
         // The caller could've messed with the registers we depend on, so
         // we'll resynchronize them before we restart our write stream.
-        self.synchronize()?;
+        self.synchronize(&stopped)?;
+        self.start_stream(stopped)?;
         result
     }
 
-    fn synchronize(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+    // Update our internal records to match the state of the remote chip.
+    fn synchronize(&mut self, _stopped: &StoppedStream) -> Result<(), EVECoprocessorError<Self>> {
         let known_space = Self::interface_result(self.ll.rd16(EVERegister::CMDB_SPACE.into()))?;
         self.known_space = known_space;
         Ok(())
     }
 
-    fn start_stream(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+    fn borrow_interface<'a>(&'a mut self, stopped: &StoppedStream) -> &'a mut I {
+        let ll = self.borrow_low_level(stopped);
+        ll.borrow_interface()
+    }
+
+    fn borrow_low_level<'a>(&'a mut self, _stopped: &StoppedStream) -> &'a mut EVELowLevel<I> {
+        &mut self.ll
+    }
+
+    fn borrow_low_level_and_waiter<'a>(
+        &'a mut self,
+        _stopped: &StoppedStream,
+    ) -> (&'a mut EVELowLevel<I>, &'a mut W) {
+        (&mut self.ll, &mut self.wait)
+    }
+
+    // `start_stream` consumes the StoppedStream token because by the time it
+    // returns the stream isn't stopped anymore.
+    fn start_stream(&mut self, stopped: StoppedStream) -> Result<(), EVECoprocessorError<Self>> {
         // We now begin a write transaction at the next offset, so subsequent
         // command writes can just go directly into that active transaction.
         // This relies on the fact that EVE has a special behavior where
         // writes into RAM_CMD wrap around only inside the command space, not
         // in the whole memory space, and so we can just keep writing and let
         // the chip worry about the wraparound for us.
-        let ei = self.ll.borrow_interface();
-        //let next_offset = self.next_offset as u32;
-        /*Self::interface_result(
-            ei.begin_write(crate::interface::EVEAddressRegion::RAM_CMD.base + next_offset),
-        )*/
+        let ei = self.borrow_interface(&stopped);
         Self::interface_result(ei.begin_write(EVERegister::CMDB_WRITE.address()))
     }
 
-    fn stop_stream(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+    // `stop_stream` produces a StoppedStream token to represent that it has
+    // stopped the stream and thus the caller can safely perform operations
+    // that expect the stream to be stopped.
+    fn stop_stream(&mut self) -> Result<StoppedStream, EVECoprocessorError<Self>> {
         // This just closes the long-lived write transaction we started in
         // start_stream.
         let ei = self.ll.borrow_interface();
-        Self::interface_result(ei.end_write())
+        Self::interface_result(ei.end_write())?;
+        Ok(StoppedStream)
     }
 
     fn write_stream<F: FnOnce(&mut Self) -> Result<(), EVECoprocessorError<Self>>>(
@@ -209,9 +243,11 @@ impl<I: EVEInterface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
     ) -> Result<(), EVECoprocessorError<Self>> {
         self.ensure_space(len)?;
 
-        self.start_stream()?;
+        // We just assume that our stream will always be active here and
+        // so we can just burst writes into it. It's the responsibility of
+        // any function that takes actions other than writing into the FIFO
+        // to temporarily stop and then restart the stream.EVERegister
         f(self)?;
-        self.stop_stream()?;
 
         Ok(())
     }
@@ -220,15 +256,24 @@ impl<I: EVEInterface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
     // in the ring buffer.
     fn ensure_space(&mut self, need: u16) -> Result<(), EVECoprocessorError<Self>> {
         if self.known_space >= need {
-            // Fast path: our local tracking knows there's enough space.
+            // Fast path: our local tracking knows there's enough space. In
+            // this case we can avoid stopping our burst-writing stream, which
+            // allows for better write throughput.
             return Ok(());
         }
 
         // Otherwise we need to use our waiter to block until there's
         // enough space, and then update our record of known_space in the
-        // hope of using the fast path next time.
-        let known_space = Self::waiter_result(self.wait.wait_for_space(&mut self.ll, need))?;
-        self.known_space = known_space;
+        // hope of using the fast path next time. We do need to pause the
+        // burst stream in this case, because the waiter will need to make
+        // other calls against the EVE chip.
+        let stopped = self.stop_stream()?;
+        {
+            let (ll, wait) = self.borrow_low_level_and_waiter(&stopped);
+            let known_space = Self::waiter_result(wait.wait_for_space(ll, need))?;
+            self.known_space = known_space;
+        }
+        self.start_stream(stopped)?;
         Ok(())
     }
 
@@ -281,6 +326,13 @@ impl<I: EVEInterface> EVECoprocessor<I, PollingCoprocessorWaiter<I>> {
         Self::new(ei, w)
     }
 }
+
+// This type is used to create a zero-cost token representing codepaths in
+// the EVECoprocessor type where the stream is stopped, to help ensure correct
+// discipline around which functions expect to be called with the stream
+// deactivated. It's an empty struct because its is only present for the
+// type checker, not relevant at runtime.
+struct StoppedStream;
 
 impl<I, W> crate::display_list::EVEDisplayListBuilder for EVECoprocessor<I, W>
 where
@@ -395,7 +447,8 @@ mod tests {
 
         assert_success(cp.new_display_list(|cp| cp.append_raw_word(0xdeadbeef)));
 
-        let got = cp.take_interface().calls();
+        let ei = assert_success(cp.take_interface());
+        let got = ei.calls();
         let want = vec![
             // Initial reset
             MockInterfaceCall::BeginWrite(CPURESET.address()),
@@ -411,11 +464,7 @@ mod tests {
             // The new_display_list call
             MockInterfaceCall::BeginWrite(CMDB_WRITE.address()),
             MockInterfaceCall::ContinueWrite(vec![0x00, 0xff, 0xff, 0xff as u8]),
-            MockInterfaceCall::EndWrite(CMDB_WRITE.address()),
-            MockInterfaceCall::BeginWrite(CMDB_WRITE.address()),
             MockInterfaceCall::ContinueWrite(vec![239, 190, 173, 222 as u8]),
-            MockInterfaceCall::EndWrite(CMDB_WRITE.address()),
-            MockInterfaceCall::BeginWrite(CMDB_WRITE.address()),
             MockInterfaceCall::ContinueWrite(vec![0x01, 0xff, 0xff, 0xff as u8]),
             MockInterfaceCall::EndWrite(CMDB_WRITE.address()),
         ];
