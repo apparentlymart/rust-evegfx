@@ -152,6 +152,45 @@ fn main() {
         cp.display()
     }));
 
+    /*
+    println!("Entering main loop...");
+    let mut ball_x: i16 = 1000;
+    let mut ball_y: i16 = 1000;
+    let mut ball_dx: i16 = 10;
+    let mut ball_dy: i16 = 10;
+    const MAX_X: i16 = 10000;
+    const MAX_Y: i16 = 10000;
+    loop {
+        must(cp.block_until_video_scanout());
+        must(cp.new_display_list(|cp| {
+            cp.clear_color_rgb(evegfx::color::EVEColorRGB { r: 0, g: 0, b: 127 })?;
+            cp.clear_all()?;
+            cp.begin(evegfx::display_list::GraphicsPrimitive::Points)?;
+            cp.point_size(100)?;
+            cp.vertex2f(ball_x as u16, ball_y as u16)?;
+            cp.display()
+        }));
+        ball_x += ball_dx;
+        ball_y += ball_dy;
+        if ball_x < 0 {
+            ball_dx = -ball_dx;
+            ball_x = -ball_x;
+        }
+        if ball_y < 0 {
+            ball_dy = -ball_dy;
+            ball_y = -ball_y;
+        }
+        if ball_x >= MAX_X {
+            ball_dx = -ball_dx;
+            ball_x = MAX_X - (ball_x - MAX_X);
+        }
+        if ball_y >= MAX_Y {
+            ball_dy = -ball_dy;
+            ball_y = MAX_Y - (ball_y - MAX_Y);
+        }
+    }
+    */
+
     println!("Waiting for the coprocessor to become idle...");
     must(cp.block_until_idle());
 

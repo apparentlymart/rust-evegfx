@@ -92,73 +92,6 @@ impl<I: EVEInterface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
         }
     }
 
-    /// A convenience function for enclosing a series of coprocessor commands
-    /// in `start_display_list` and `display_list_swap` commands.
-    ///
-    /// The given closure can in principle call all of the same methods as
-    /// directly on the coprocessor object, but it's best to avoid any action
-    /// that interacts with anything outside of the coprocessor. It _definitely_
-    /// doesn't make sense to recursively call into `new_display_list` again.
-    pub fn new_display_list<F>(&mut self, f: F) -> Result<(), EVECoprocessorError<Self>>
-    where
-        F: FnOnce(&mut Self) -> Result<(), EVECoprocessorError<Self>>,
-    {
-        self.start_display_list()?;
-        f(self)?;
-        self.display_list_swap()
-    }
-
-    /// Blocks until the coprocessor buffer is empty, signalling that the
-    /// coprocessor has completed all of the commands issued so far.
-    pub fn block_until_idle(&mut self) -> Result<(), EVECoprocessorError<Self>> {
-        self.ensure_space(4092)
-    }
-
-    pub fn show_testcard(&mut self) -> Result<(), EVECoprocessorError<Self>> {
-        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF61))
-    }
-
-    pub fn show_manufacturer_logo(&mut self) -> Result<(), EVECoprocessorError<Self>> {
-        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF31))
-    }
-
-    pub fn start_spinner(&mut self) -> Result<(), EVECoprocessorError<Self>> {
-        // TODO: Make the spinner customizable.
-        self.write_stream(20, |cp| {
-            cp.write_to_buffer(0xFFFFFF16)?;
-            cp.write_to_buffer(1000)?;
-            cp.write_to_buffer(1000)?;
-            cp.write_to_buffer(0)?;
-            cp.write_to_buffer(0)
-        })
-    }
-
-    pub fn start_display_list(&mut self) -> Result<(), EVECoprocessorError<Self>> {
-        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF00))
-    }
-
-    pub fn display_list_swap(&mut self) -> Result<(), EVECoprocessorError<Self>> {
-        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF01))
-    }
-
-    pub fn append_display_list(
-        &mut self,
-        cmd: crate::display_list::DLCmd,
-    ) -> Result<(), EVECoprocessorError<Self>> {
-        self.write_stream(4, |cp| cp.write_to_buffer(cmd.as_raw()))
-    }
-
-    pub fn append_raw_word(&mut self, word: u32) -> Result<(), EVECoprocessorError<Self>> {
-        self.write_stream(4, |cp| cp.write_to_buffer(word))
-    }
-
-    pub fn wait_microseconds(&mut self, delay: u32) -> Result<(), EVECoprocessorError<Self>> {
-        self.write_stream(8, |cp| {
-            cp.write_to_buffer(0xFFFFFF65)?;
-            cp.write_to_buffer(delay)
-        })
-    }
-
     /// `take_interface` consumes the coprocessor object and returns its
     /// underlying `EVEInterface`.
     ///
@@ -324,6 +257,103 @@ impl<I: EVEInterface> EVECoprocessor<I, PollingCoprocessorWaiter<I>> {
     pub fn new_polling(ei: I) -> Result<Self, EVECoprocessorError<Self>> {
         let w: PollingCoprocessorWaiter<I> = PollingCoprocessorWaiter::new();
         Self::new(ei, w)
+    }
+}
+
+/// The methods which submit new commands into the coprocessor ringbuffer.
+///
+/// These will block using the waiter if they run out of coprocessor buffer
+/// space, but they will not wait if there's enough buffer space available to
+/// write into.
+impl<I: EVEInterface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
+    /// A convenience function for enclosing a series of coprocessor commands
+    /// in `start_display_list` and `display_list_swap` commands.
+    ///
+    /// The given closure can in principle call all of the same methods as
+    /// directly on the coprocessor object, but it's best to avoid any action
+    /// that interacts with anything outside of the coprocessor. It _definitely_
+    /// doesn't make sense to recursively call into `new_display_list` again.
+    pub fn new_display_list<F>(&mut self, f: F) -> Result<(), EVECoprocessorError<Self>>
+    where
+        F: FnOnce(&mut Self) -> Result<(), EVECoprocessorError<Self>>,
+    {
+        self.start_display_list()?;
+        f(self)?;
+        self.display_list_swap()
+    }
+
+    pub fn show_testcard(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF61))
+    }
+
+    pub fn show_manufacturer_logo(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF31))
+    }
+
+    pub fn start_spinner(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+        // TODO: Make the spinner customizable.
+        self.write_stream(20, |cp| {
+            cp.write_to_buffer(0xFFFFFF16)?;
+            cp.write_to_buffer(1000)?;
+            cp.write_to_buffer(1000)?;
+            cp.write_to_buffer(0)?;
+            cp.write_to_buffer(0)
+        })
+    }
+
+    pub fn start_display_list(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF00))
+    }
+
+    pub fn display_list_swap(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF01))
+    }
+
+    pub fn append_display_list(
+        &mut self,
+        cmd: crate::display_list::DLCmd,
+    ) -> Result<(), EVECoprocessorError<Self>> {
+        self.write_stream(4, |cp| cp.write_to_buffer(cmd.as_raw()))
+    }
+
+    pub fn append_raw_word(&mut self, word: u32) -> Result<(), EVECoprocessorError<Self>> {
+        self.write_stream(4, |cp| cp.write_to_buffer(word))
+    }
+
+    pub fn wait_microseconds(&mut self, delay: u32) -> Result<(), EVECoprocessorError<Self>> {
+        self.write_stream(8, |cp| {
+            cp.write_to_buffer(0xFFFFFF65)?;
+            cp.write_to_buffer(delay)
+        })
+    }
+
+    pub fn wait_video_scanout(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF42))
+    }
+}
+
+/// The methods which block until the coprocessor has "caught up" with
+/// particular events.
+///
+/// These make use of the associated "waiter" to block until specific
+/// coprocessor commands have completed, and so applications making heavy
+/// use of these may wish to consider supplying a tailored waiter
+/// implementation that can avoid busy-waiting.
+impl<I: EVEInterface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
+    /// Blocks until the coprocessor buffer is empty, signalling that the
+    /// coprocessor has completed all of the commands issued so far.
+    pub fn block_until_idle(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+        self.ensure_space(4092)
+    }
+
+    /// Blocks until EVE has finished scanning out the current frame. Callers
+    /// can use this as part of a main loop which takes actions synchronized
+    /// with the video framerate.
+    ///
+    /// This is a blocking version of `wait_video_scanout`.
+    pub fn block_until_video_scanout(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+        self.wait_video_scanout()?;
+        self.block_until_idle()
     }
 }
 
