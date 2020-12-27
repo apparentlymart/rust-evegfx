@@ -127,7 +127,7 @@ impl DLCmd {
 
     pub const fn clear_color_rgb(color: crate::color::EVEColorRGB) -> Self {
         OpCode::CLEAR_COLOR_RGB
-            .build((color.r as u32) << 16 | (color.b as u32) << 8 | (color.g as u32) << 0)
+            .build((color.r as u32) << 16 | (color.g as u32) << 8 | (color.b as u32) << 0)
     }
 
     pub const fn clear_color_alpha(alpha: u8) -> Self {
