@@ -110,10 +110,14 @@ impl<I: EVEInterface> EVELowLevel<I> {
     }
 }
 
-impl<I: EVEInterface> crate::display_list::DLWrite for EVELowLevel<I> {
+impl<I: EVEInterface> crate::display_list::EVEDisplayListBuilder for EVELowLevel<I> {
     type Error = I::Error;
 
-    fn write_dl_cmd(&mut self, cmd: DLCmd) -> Result<(), I::Error> {
+    fn append_raw_command(&mut self, raw: u32) -> core::result::Result<(), I::Error> {
+        self.dl(DLCmd::from_raw(raw))
+    }
+
+    fn append_command(&mut self, cmd: DLCmd) -> core::result::Result<(), I::Error> {
         self.dl(cmd)
     }
 }

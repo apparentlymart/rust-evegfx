@@ -80,6 +80,22 @@ impl<I: EVEInterface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
         }
     }
 
+    /// A convenience function for enclosing a series of coprocessor commands
+    /// in `start_display_list` and `display_list_swap` commands.
+    ///
+    /// The given closure can in principle call all of the same methods as
+    /// directly on the coprocessor object, but it's best to avoid any action
+    /// that interacts with anything outside of the coprocessor. It _definitely_
+    /// doesn't make sense to recursively call into `new_display_list` again.
+    pub fn new_display_list<F>(&mut self, f: F) -> Result<(), EVECoprocessorError<Self>>
+    where
+        F: FnOnce(&mut Self) -> Result<(), EVECoprocessorError<Self>>,
+    {
+        self.start_display_list()?;
+        f(self)?;
+        self.display_list_swap()
+    }
+
     /// Blocks until the coprocessor buffer is empty, signalling that the
     /// coprocessor has completed all of the commands issued so far.
     pub fn block_until_idle(&mut self) -> Result<(), EVECoprocessorError<Self>> {
@@ -107,6 +123,21 @@ impl<I: EVEInterface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
 
     pub fn start_display_list(&mut self) -> Result<(), EVECoprocessorError<Self>> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF00))
+    }
+
+    pub fn display_list_swap(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF01))
+    }
+
+    pub fn append_display_list(
+        &mut self,
+        cmd: crate::display_list::DLCmd,
+    ) -> Result<(), EVECoprocessorError<Self>> {
+        self.write_stream(4, |cp| cp.write_to_buffer(cmd.as_raw()))
+    }
+
+    pub fn append_raw_word(&mut self, word: u32) -> Result<(), EVECoprocessorError<Self>> {
+        self.write_stream(4, |cp| cp.write_to_buffer(word))
     }
 
     pub fn wait_microseconds(&mut self, delay: u32) -> Result<(), EVECoprocessorError<Self>> {
@@ -248,6 +279,28 @@ impl<I: EVEInterface> EVECoprocessor<I, PollingCoprocessorWaiter<I>> {
     pub fn new_polling(ei: I) -> Result<Self, EVECoprocessorError<Self>> {
         let w: PollingCoprocessorWaiter<I> = PollingCoprocessorWaiter::new();
         Self::new(ei, w)
+    }
+}
+
+impl<I, W> crate::display_list::EVEDisplayListBuilder for EVECoprocessor<I, W>
+where
+    I: EVEInterface,
+    W: EVECoprocessorWaiter<I>,
+{
+    type Error = EVECoprocessorError<Self>;
+
+    fn append_raw_command(
+        &mut self,
+        raw: u32,
+    ) -> core::result::Result<(), EVECoprocessorError<Self>> {
+        self.append_raw_word(raw)
+    }
+
+    fn append_command(
+        &mut self,
+        cmd: crate::display_list::DLCmd,
+    ) -> core::result::Result<(), EVECoprocessorError<Self>> {
+        self.append_display_list(cmd)
     }
 }
 

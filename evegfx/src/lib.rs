@@ -101,14 +101,18 @@ impl<I: EVEInterface> EVE<I> {
     }
 
     pub fn new_display_list<
-        F: FnOnce(&mut display_list::DLBuilder<low_level::EVELowLevel<I>>) -> Result<(), I::Error>,
+        F: FnOnce(
+            &mut display_list::JustEVEDisplayListBuilder<low_level::EVELowLevel<I>>,
+        ) -> Result<(), I::Error>,
     >(
         &mut self,
         f: F,
     ) -> Result<(), I::Error> {
         self.ll.dl_reset();
-        let mut builder = display_list::DLBuilder::new(&mut self.ll);
-        f(&mut builder)?;
+        {
+            let mut builder = display_list::JustEVEDisplayListBuilder::new(&mut self.ll);
+            f(&mut builder)?;
+        }
         self.ll
             .wr8(registers::EVERegister::DLSWAP.into(), 0b00000010)
     }

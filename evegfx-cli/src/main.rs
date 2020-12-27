@@ -3,6 +3,7 @@
 // of interfaces (Linux spidev, SPIDriver adapter, etc). For now though it's
 // just a small test bed for trying out the library crates in practice.
 
+use evegfx::display_list::EVEDisplayListBuilder;
 use evegfx::interface::{EVEAddress, EVECommand};
 use evegfx::{EVEInterface, EVE};
 use serial_embedded_hal::{PortSettings, Serial};
@@ -143,6 +144,13 @@ fn main() {
     //must(cp.start_display_list());
     //must(cp.start_spinner());
     //must(cp.show_manufacturer_logo());
+
+    println!("Using the coprocessor to present a new display list...");
+    must(cp.new_display_list(|cp| {
+        cp.clear_color_rgb(evegfx::color::EVEColorRGB { r: 0, g: 0, b: 127 })?;
+        cp.clear_all()?;
+        cp.display()
+    }));
 
     println!("Waiting for the coprocessor to become idle...");
     must(cp.block_until_idle());

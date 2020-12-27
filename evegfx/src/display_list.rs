@@ -18,8 +18,12 @@ impl DLCmd {
     /// Creates a command from the raw command word given as a `u32`. It's
     /// the caller's responsibility to ensure that it's a valid encoding of
     /// a real display list command.
-    pub const fn raw(raw: u32) -> Self {
+    pub const fn from_raw(raw: u32) -> Self {
         Self(raw)
+    }
+
+    pub const fn as_raw(&self) -> u32 {
+        self.0
     }
 
     pub const fn alpha_func(func: AlphaTestFunc, ref_val: u8) -> Self {
@@ -156,72 +160,83 @@ impl DLCmd {
     }
 }
 
-/// DLBuilder is a helper for concisely building display lists. It's used only
-/// in conjunction with closure-based display-list-construction functions.
-pub struct DLBuilder<'a, W: DLWrite> {
+/// Trait implemented by objects that can append display list commands to
+/// a display list.
+///
+/// Implementers usually implement only `append_raw_command`, and take the
+/// default implementations of all of the other methods.
+pub trait EVEDisplayListBuilder {
+    type Error;
+
+    fn append_raw_command(&mut self, raw: u32) -> Result<(), Self::Error>;
+
+    fn append_command(&mut self, cmd: DLCmd) -> Result<(), Self::Error> {
+        self.append_raw_command(cmd.as_raw())
+    }
+
+    fn begin(&mut self, prim: GraphicsPrimitive) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::begin(prim))
+    }
+
+    fn clear(&mut self, color: bool, stencil: bool, tag: bool) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::clear(color, stencil, tag))
+    }
+
+    fn clear_all(&mut self) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::CLEAR_ALL)
+    }
+
+    fn clear_color_rgb(&mut self, color: crate::color::EVEColorRGB) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::clear_color_rgb(color))
+    }
+
+    fn clear_color_alpha(&mut self, alpha: u8) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::clear_color_alpha(alpha))
+    }
+
+    fn clear_color_rgba(&mut self, color: crate::color::EVEColorRGBA) -> Result<(), Self::Error> {
+        let cmds = DLCmd::clear_color_rgba_pair(color);
+        self.append_command(cmds.0)?;
+        self.append_command(cmds.1)
+    }
+
+    fn display(&mut self) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::DISPLAY)
+    }
+
+    fn end(&mut self) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::END)
+    }
+
+    fn point_size(&mut self, size: u16) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::point_size(size))
+    }
+
+    fn vertex2f(&mut self, x: u16, y: u16) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::vertex2f(x, y))
+    }
+}
+
+/// An implementation of `EVEDisplayListBuilder` that _only_ has the display
+/// list building functionality, wrapping another object that implements the
+/// trait, for situations where it would be inappropriate to use other
+/// functionality of the wrapped object while building a display list.
+pub struct JustEVEDisplayListBuilder<'a, W: EVEDisplayListBuilder> {
     w: &'a mut W,
 }
 
-impl<'a, W: DLWrite> DLBuilder<'a, W> {
-    pub(crate) fn new(writer: &'a mut W) -> Self {
-        Self { w: writer }
-    }
-
-    pub fn append(&mut self, cmd: DLCmd) -> Result<(), W::Error> {
-        self.w.write_dl_cmd(cmd)
-    }
-
-    pub fn raw(&mut self, raw: u32) -> Result<(), W::Error> {
-        self.append(DLCmd::raw(raw))
-    }
-
-    pub fn begin(&mut self, prim: GraphicsPrimitive) -> Result<(), W::Error> {
-        self.append(DLCmd::begin(prim))
-    }
-
-    pub fn clear(&mut self, color: bool, stencil: bool, tag: bool) -> Result<(), W::Error> {
-        self.append(DLCmd::clear(color, stencil, tag))
-    }
-
-    pub fn clear_all(&mut self) -> Result<(), W::Error> {
-        self.append(DLCmd::CLEAR_ALL)
-    }
-
-    pub fn clear_color_rgb(&mut self, color: crate::color::EVEColorRGB) -> Result<(), W::Error> {
-        self.append(DLCmd::clear_color_rgb(color))
-    }
-
-    pub fn clear_color_alpha(&mut self, alpha: u8) -> Result<(), W::Error> {
-        self.append(DLCmd::clear_color_alpha(alpha))
-    }
-
-    pub fn clear_color_rgba(&mut self, color: crate::color::EVEColorRGBA) -> Result<(), W::Error> {
-        let cmds = DLCmd::clear_color_rgba_pair(color);
-        self.append(cmds.0)?;
-        self.append(cmds.1)
-    }
-
-    pub fn display(&mut self) -> Result<(), W::Error> {
-        self.append(DLCmd::DISPLAY)
-    }
-
-    pub fn end(&mut self) -> Result<(), W::Error> {
-        self.append(DLCmd::END)
-    }
-
-    pub fn point_size(&mut self, size: u16) -> Result<(), W::Error> {
-        self.append(DLCmd::point_size(size))
-    }
-
-    pub fn vertex2f(&mut self, x: u16, y: u16) -> Result<(), W::Error> {
-        self.append(DLCmd::vertex2f(x, y))
+impl<'a, W: EVEDisplayListBuilder> JustEVEDisplayListBuilder<'a, W> {
+    pub fn new(w: &'a mut W) -> Self {
+        Self { w: w }
     }
 }
 
-pub trait DLWrite {
-    type Error;
+impl<'a, W: EVEDisplayListBuilder> EVEDisplayListBuilder for JustEVEDisplayListBuilder<'a, W> {
+    type Error = W::Error;
 
-    fn write_dl_cmd(&mut self, cmd: DLCmd) -> Result<(), Self::Error>;
+    fn append_raw_command(&mut self, raw: u32) -> core::result::Result<(), W::Error> {
+        self.w.append_raw_command(raw)
+    }
 }
 
 /// Each command is encoded as a four-byte value. Converting to `u32` returns
@@ -266,7 +281,7 @@ impl OpCode {
     }
 
     const fn build(self, v: u32) -> DLCmd {
-        DLCmd::raw(self.shift() | v)
+        DLCmd::from_raw(self.shift() | v)
     }
 }
 
@@ -468,61 +483,67 @@ mod tests {
     fn test_dlcmd() {
         assert_eq!(
             DLCmd::alpha_func(AlphaTestFunc::Greater, 254),
-            DLCmd::raw(0x090003fe),
+            DLCmd::from_raw(0x090003fe),
         );
         assert_eq!(
             DLCmd::alpha_func(AlphaTestFunc::Never, 0),
-            DLCmd::raw(0x09000000),
+            DLCmd::from_raw(0x09000000),
         );
         assert_eq!(
             DLCmd::begin(GraphicsPrimitive::Bitmaps),
-            DLCmd::raw(0x1f000001),
+            DLCmd::from_raw(0x1f000001),
         );
         assert_eq!(
             DLCmd::begin(GraphicsPrimitive::Rects),
-            DLCmd::raw(0x1f000009),
+            DLCmd::from_raw(0x1f000009),
         );
         assert_eq!(
             DLCmd::bitmap_ext_format(BitmapExtFormat::ARGB1555),
-            DLCmd::raw(0x2e000000),
+            DLCmd::from_raw(0x2e000000),
         );
         assert_eq!(
             DLCmd::bitmap_ext_format(BitmapExtFormat::ARGB4),
-            DLCmd::raw(0x2e000006),
+            DLCmd::from_raw(0x2e000006),
         );
         assert_eq!(
             DLCmd::bitmap_ext_format(BitmapExtFormat::TextVGA),
-            DLCmd::raw(0x2e00000a),
+            DLCmd::from_raw(0x2e00000a),
         );
         assert_eq!(
             DLCmd::bitmap_handle(BitmapHandle::force_raw(0)),
-            DLCmd::raw(0x05000000),
+            DLCmd::from_raw(0x05000000),
         );
         assert_eq!(
             DLCmd::bitmap_handle(BitmapHandle::force_raw(15)),
-            DLCmd::raw(0x0500000f),
+            DLCmd::from_raw(0x0500000f),
         );
         assert_eq!(
             DLCmd::bitmap_handle(BitmapHandle::force_raw(31)),
-            DLCmd::raw(0x0500001f),
+            DLCmd::from_raw(0x0500001f),
         );
         assert_eq!(
             DLCmd::bitmap_layout(BitmapFormat::ARGB4, 255, 255),
-            DLCmd::raw(0x0731feff),
+            DLCmd::from_raw(0x0731feff),
         );
         assert_eq!(
             DLCmd::bitmap_layout(BitmapFormat::ARGB4, 1024, 768),
-            DLCmd::raw(0x07300100),
+            DLCmd::from_raw(0x07300100),
         );
-        assert_eq!(DLCmd::bitmap_layout_h(255, 255), DLCmd::raw(0x28000000));
-        assert_eq!(DLCmd::bitmap_layout_h(1024, 768), DLCmd::raw(0x28000004));
+        assert_eq!(
+            DLCmd::bitmap_layout_h(255, 255),
+            DLCmd::from_raw(0x28000000)
+        );
+        assert_eq!(
+            DLCmd::bitmap_layout_h(1024, 768),
+            DLCmd::from_raw(0x28000004)
+        );
         assert_eq!(
             DLCmd::bitmap_layout_pair(BitmapFormat::ARGB4, 255, 255),
-            (DLCmd::raw(0x0731feff), DLCmd::raw(0x28000000)),
+            (DLCmd::from_raw(0x0731feff), DLCmd::from_raw(0x28000000)),
         );
         assert_eq!(
             DLCmd::bitmap_layout_pair(BitmapFormat::ARGB4, 1024, 768),
-            (DLCmd::raw(0x07300100), DLCmd::raw(0x28000004)),
+            (DLCmd::from_raw(0x07300100), DLCmd::from_raw(0x28000004)),
         );
         assert_eq!(
             DLCmd::bitmap_size(
@@ -532,7 +553,7 @@ mod tests {
                 BitmapWrapMode::Border,
                 BitmapWrapMode::Border
             ),
-            DLCmd::raw(0x0801feff),
+            DLCmd::from_raw(0x0801feff),
         );
         assert_eq!(
             DLCmd::bitmap_size(
@@ -542,7 +563,7 @@ mod tests {
                 BitmapWrapMode::Border,
                 BitmapWrapMode::Border
             ),
-            DLCmd::raw(0x08000000),
+            DLCmd::from_raw(0x08000000),
         );
         assert_eq!(
             DLCmd::bitmap_size(
@@ -552,7 +573,7 @@ mod tests {
                 BitmapWrapMode::Border,
                 BitmapWrapMode::Border
             ),
-            DLCmd::raw(0x08000100),
+            DLCmd::from_raw(0x08000100),
         );
         assert_eq!(
             DLCmd::bitmap_size(
@@ -562,7 +583,7 @@ mod tests {
                 BitmapWrapMode::Border,
                 BitmapWrapMode::Border
             ),
-            DLCmd::raw(0x08100201),
+            DLCmd::from_raw(0x08100201),
         );
         assert_eq!(
             DLCmd::bitmap_size(
@@ -572,7 +593,7 @@ mod tests {
                 BitmapWrapMode::Repeat,
                 BitmapWrapMode::Border
             ),
-            DLCmd::raw(0x08080201),
+            DLCmd::from_raw(0x08080201),
         );
         assert_eq!(
             DLCmd::bitmap_size(
@@ -582,7 +603,7 @@ mod tests {
                 BitmapWrapMode::Border,
                 BitmapWrapMode::Repeat
             ),
-            DLCmd::raw(0x08040201),
+            DLCmd::from_raw(0x08040201),
         );
         assert_eq!(
             DLCmd::bitmap_size_pair(
@@ -592,7 +613,7 @@ mod tests {
                 BitmapWrapMode::Border,
                 BitmapWrapMode::Border
             ),
-            (DLCmd::raw(0x0801feff), DLCmd::raw(0x29000000))
+            (DLCmd::from_raw(0x0801feff), DLCmd::from_raw(0x29000000))
         );
         assert_eq!(
             DLCmd::bitmap_size_pair(
@@ -602,7 +623,7 @@ mod tests {
                 BitmapWrapMode::Border,
                 BitmapWrapMode::Border
             ),
-            (DLCmd::raw(0x08000000), DLCmd::raw(0x29000000)),
+            (DLCmd::from_raw(0x08000000), DLCmd::from_raw(0x29000000)),
         );
         assert_eq!(
             DLCmd::bitmap_size_pair(
@@ -612,7 +633,7 @@ mod tests {
                 BitmapWrapMode::Border,
                 BitmapWrapMode::Border
             ),
-            (DLCmd::raw(0x08000100), DLCmd::raw(0x29000401)),
+            (DLCmd::from_raw(0x08000100), DLCmd::from_raw(0x29000401)),
         );
     }
 }
