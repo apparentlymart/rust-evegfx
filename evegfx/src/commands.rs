@@ -152,8 +152,8 @@ impl<I: EVEInterface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
     ///
     /// To make temporary use of the underlying interface, without also
     /// discarding the coprocessor object, use `with_interface` instead.
-    pub fn take_interface(self) -> Result<I, EVECoprocessorError<Self>> {
-        return Ok(self.ll.take_interface());
+    pub fn take_interface(self) -> I {
+        return self.ll.take_interface();
     }
 
     /// `with_interface` runs your given closure with access to the
@@ -358,5 +358,67 @@ impl<I: EVEInterface> EVECoprocessorWaiter<I> for PollingCoprocessorWaiter<I> {
                 return Ok(known_space);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate std;
+
+    use super::*;
+    use crate::interface::testing::{MockInterface, MockInterfaceCall};
+    use crate::registers::EVERegister::*;
+    use std::vec;
+
+    fn test_obj<F: FnOnce(&mut MockInterface)>(
+        setup: F,
+    ) -> EVECoprocessor<MockInterface, impl crate::commands::EVECoprocessorWaiter<MockInterface>>
+    {
+        let mut interface = MockInterface::new();
+        setup(&mut interface);
+        match EVECoprocessor::new_polling(interface) {
+            Ok(v) => v,
+            Err(_) => panic!("failed to construct test object"),
+        }
+    }
+
+    fn assert_success<R, E>(v: Result<R, E>) -> R {
+        match v {
+            Ok(v) => v,
+            Err(_) => panic!("call failed"),
+        }
+    }
+
+    #[test]
+    fn test_new_display_list() {
+        let mut cp = test_obj(|_| {});
+
+        assert_success(cp.new_display_list(|cp| cp.append_raw_word(0xdeadbeef)));
+
+        let got = cp.take_interface().calls();
+        let want = vec![
+            // Initial reset
+            MockInterfaceCall::BeginWrite(CPURESET.address()),
+            MockInterfaceCall::ContinueWrite(vec![0x01 as u8]),
+            MockInterfaceCall::EndWrite(CPURESET.address()),
+            MockInterfaceCall::BeginWrite(CPURESET.address()),
+            MockInterfaceCall::ContinueWrite(vec![0x00 as u8]),
+            MockInterfaceCall::EndWrite(CPURESET.address()),
+            // Initial synchronize
+            MockInterfaceCall::BeginRead(CMDB_SPACE.address()),
+            MockInterfaceCall::ContinueRead(2),
+            MockInterfaceCall::EndRead(CMDB_SPACE.address()),
+            // The new_display_list call
+            MockInterfaceCall::BeginWrite(CMDB_WRITE.address()),
+            MockInterfaceCall::ContinueWrite(vec![0x00, 0xff, 0xff, 0xff as u8]),
+            MockInterfaceCall::EndWrite(CMDB_WRITE.address()),
+            MockInterfaceCall::BeginWrite(CMDB_WRITE.address()),
+            MockInterfaceCall::ContinueWrite(vec![239, 190, 173, 222 as u8]),
+            MockInterfaceCall::EndWrite(CMDB_WRITE.address()),
+            MockInterfaceCall::BeginWrite(CMDB_WRITE.address()),
+            MockInterfaceCall::ContinueWrite(vec![0x01, 0xff, 0xff, 0xff as u8]),
+            MockInterfaceCall::EndWrite(CMDB_WRITE.address()),
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
     }
 }
