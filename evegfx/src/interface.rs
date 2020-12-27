@@ -473,26 +473,29 @@ pub mod testing {
         }
     }
 
-    impl EVEInterface for MockInterface {
-        type Error = ();
+    #[derive(Debug)]
+    pub struct MockError();
 
-        fn begin_write(&mut self, addr: EVEAddress) -> core::result::Result<(), ()> {
+    impl EVEInterface for MockInterface {
+        type Error = MockError;
+
+        fn begin_write(&mut self, addr: EVEAddress) -> core::result::Result<(), Self::Error> {
             let call = MockInterfaceCall::BeginWrite(addr);
             if self.call_should_fail(&call) {
                 self._calls.push(call);
-                return Err(());
+                return Err(MockError());
             }
             self._calls.push(call);
             self._write_addr = Some(addr);
             Ok(())
         }
 
-        fn continue_write(&mut self, buf: &[u8]) -> core::result::Result<(), ()> {
+        fn continue_write(&mut self, buf: &[u8]) -> core::result::Result<(), Self::Error> {
             let log_buf = buf.to_vec();
             let call = MockInterfaceCall::ContinueWrite(log_buf);
             if self.call_should_fail(&call) {
                 self._calls.push(call);
-                return Err(());
+                return Err(MockError());
             }
             self._calls.push(call);
 
@@ -501,34 +504,34 @@ pub mod testing {
             Ok(())
         }
 
-        fn end_write(&mut self) -> core::result::Result<(), ()> {
+        fn end_write(&mut self) -> core::result::Result<(), Self::Error> {
             let addr = self._write_addr.unwrap();
             let call = MockInterfaceCall::EndWrite(addr);
             if self.call_should_fail(&call) {
                 self._calls.push(call);
-                return Err(());
+                return Err(MockError());
             }
             self._calls.push(call);
             self._write_addr = None;
             Ok(())
         }
 
-        fn begin_read(&mut self, addr: EVEAddress) -> core::result::Result<(), ()> {
+        fn begin_read(&mut self, addr: EVEAddress) -> core::result::Result<(), Self::Error> {
             let call = MockInterfaceCall::BeginRead(addr);
             if self.call_should_fail(&call) {
                 self._calls.push(call);
-                return Err(());
+                return Err(MockError());
             }
             self._calls.push(call);
             self._read_addr = Some(addr);
             Ok(())
         }
 
-        fn continue_read(&mut self, into: &mut [u8]) -> core::result::Result<(), ()> {
+        fn continue_read(&mut self, into: &mut [u8]) -> core::result::Result<(), Self::Error> {
             let call = MockInterfaceCall::ContinueRead(into.len());
             if self.call_should_fail(&call) {
                 self._calls.push(call);
-                return Err(());
+                return Err(MockError());
             }
             self._calls.push(call);
 
@@ -545,24 +548,29 @@ pub mod testing {
             Ok(())
         }
 
-        fn end_read(&mut self) -> core::result::Result<(), ()> {
+        fn end_read(&mut self) -> core::result::Result<(), Self::Error> {
             let addr = self._read_addr.unwrap();
             let call = MockInterfaceCall::EndRead(addr);
             if self.call_should_fail(&call) {
                 self._calls.push(call);
-                return Err(());
+                return Err(MockError());
             }
             self._calls.push(call);
             self._read_addr = None;
             Ok(())
         }
 
-        fn cmd(&mut self, cmd: EVECommand, a0: u8, a1: u8) -> core::result::Result<(), ()> {
+        fn cmd(
+            &mut self,
+            cmd: EVECommand,
+            a0: u8,
+            a1: u8,
+        ) -> core::result::Result<(), Self::Error> {
             let call = MockInterfaceCall::Cmd(cmd, a0, a1);
             if let Some(fail) = self._fail {
                 if fail(&call) {
                     self._calls.push(call);
-                    return Err(());
+                    return Err(MockError());
                 }
             }
             self._calls.push(call);

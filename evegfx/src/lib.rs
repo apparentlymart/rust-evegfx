@@ -1,6 +1,7 @@
 #![no_std]
 
 pub mod color;
+pub mod commands;
 pub mod display_list;
 pub mod graphics_mode;
 pub mod host_commands;
@@ -110,5 +111,47 @@ impl<I: EVEInterface> EVE<I> {
         f(&mut builder)?;
         self.ll
             .wr8(registers::EVERegister::DLSWAP.into(), 0b00000010)
+    }
+
+    /// Consumes the main EVE object and returns an interface to the
+    /// coprocessor component of the chip, using the given waiter to pause
+    /// when the command buffer becomes too full.
+    ///
+    /// The typical way to use an EVE device is to initialize it via direct
+    /// register writes and then do all of the main application activities
+    /// via the coprocessor, which exposes all of the system's capabilities
+    /// either directly or indirectly.
+    pub fn coprocessor<W: commands::EVECoprocessorWaiter<I>>(
+        self,
+        waiter: W,
+    ) -> Result<
+        commands::EVECoprocessor<I, W>,
+        commands::EVECoprocessorError<commands::EVECoprocessor<I, W>>,
+    > {
+        let ei = self.ll.take_interface();
+        commands::EVECoprocessor::new(ei, waiter)
+    }
+
+    /// A wrapper around `coprocessor` which automatically provides a
+    /// busy-polling waiter. This can be a good choice particularly if your
+    /// application typically generates coprocessor commands slow enough that
+    /// the buffer will rarely fill, and thus busy waiting will not be
+    /// typical.
+    ///
+    /// However, this will use more CPU and cause more SPI traffic than an
+    /// interrupt-based waiter for applications that frequently need to wait
+    /// for command processing, such as those which attempt to synchronize
+    /// with the display refresh rate and thus could often end up waiting for
+    /// the scanout to "catch up".
+    pub fn coprocessor_polling(
+        self,
+    ) -> Result<
+        commands::EVECoprocessor<I, impl commands::EVECoprocessorWaiter<I>>,
+        commands::EVECoprocessorError<
+            commands::EVECoprocessor<I, impl commands::EVECoprocessorWaiter<I>>,
+        >,
+    > {
+        let ei = self.ll.take_interface();
+        commands::EVECoprocessor::new_polling(ei)
     }
 }

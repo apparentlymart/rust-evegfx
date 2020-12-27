@@ -21,6 +21,8 @@ pub(crate) fn activate_system_clock<I: EVEInterface>(
 
     // Just in case the system was already activated before we were
     // called, we'll put it to sleep while we do our work here.
+    ll.host_command(PWRDOWN, 0, 0)?;
+    ll.host_command(ACTIVE, 0, 0)?;
     ll.host_command(SLEEP, 0, 0)?;
 
     // Internal or external clock source?

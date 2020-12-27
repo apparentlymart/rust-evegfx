@@ -47,6 +47,7 @@ fn main() {
     let (tx, rx) = serial.split();
     let mut sd = SPIDriver::new(tx, rx);
     sd.unselect().unwrap();
+
     let eve_interface = evegfx_spidriver::EVESPIDriverInterface::new(sd);
     let mut eve_interface = LogInterface::new(eve_interface);
     //eve_interface.set_fake_delay(std::time::Duration::from_millis(1000));
@@ -133,12 +134,34 @@ fn main() {
     .unwrap();
     println!("Activating the pixel clock...");
     eve.start_video(TIMINGS).unwrap();
+
+    println!("Starting coprocessor...");
+    let cp = must(eve.coprocessor_polling());
+    let mut cp = cp.with_new_waiter(|old| LogWaiter::new(old));
+
+    //println!("Using the coprocessor to show a testcard...");
+    //must(cp.start_display_list());
+    //must(cp.start_spinner());
+    //must(cp.show_manufacturer_logo());
+
+    println!("Waiting for the coprocessor to become idle...");
+    must(cp.block_until_idle());
+
     println!("All done!");
 
     /*
     let ll = eve.borrow_low_level();
     show_current_dl(ll);
     */
+}
+
+// This is similar to calling `.unwrap` on the result except that it also
+// works for error types that don't implement core::fmt::Debug.
+fn must<T, E>(result: Result<T, E>) -> T {
+    match result {
+        Ok(v) => v,
+        Err(_) => panic!("unexpected error"),
+    }
 }
 
 fn show_register<I: EVEInterface>(
@@ -273,5 +296,49 @@ impl<W: EVEInterface> EVEInterface for LogInterface<W> {
             None => println!("- cmd({:?}, {:#04x}, {:#04x})", cmd, a0, a1),
         }
         Self::handle(self.w.cmd(cmd, a0, a1), self.fake_delay)
+    }
+}
+
+struct LogWaiter<I: EVEInterface, W: evegfx::commands::EVECoprocessorWaiter<I>> {
+    w: W,
+    _ei: core::marker::PhantomData<I>,
+}
+
+impl<I: EVEInterface, W: evegfx::commands::EVECoprocessorWaiter<I>> LogWaiter<I, W> {
+    fn new(wrapped: W) -> Self {
+        Self {
+            w: wrapped,
+            _ei: core::marker::PhantomData,
+        }
+    }
+}
+
+impl<I: EVEInterface, W: evegfx::commands::EVECoprocessorWaiter<I>>
+    evegfx::commands::EVECoprocessorWaiter<I> for LogWaiter<I, W>
+{
+    type Error = W::Error;
+
+    fn wait_for_space(
+        &mut self,
+        ll: &mut evegfx::low_level::EVELowLevel<I>,
+        need: u16,
+    ) -> std::result::Result<u16, W::Error> {
+        println!(
+            "- waiting for coprocessor buffer to have {} ({:#06x?}) bytes of space",
+            need, need,
+        );
+        let result = self.w.wait_for_space(ll, need);
+        match &result {
+            Ok(new_space) => {
+                println!(
+                    "- coprocessor buffer now has {} ({:#06x?}) bytes of space",
+                    new_space, new_space
+                );
+            }
+            Err(err) => {
+                println!("- failed while waiting for buffer space");
+            }
+        }
+        result
     }
 }
