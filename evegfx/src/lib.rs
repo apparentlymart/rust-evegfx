@@ -9,7 +9,30 @@ pub mod init;
 pub mod interface;
 pub mod low_level;
 pub mod registers;
+pub mod strfmt;
 
+/// Constructs a [`Message`](crate::strfmt::Message) value for use with EVE
+/// coprocessor commands that support string formatting.
+///
+/// This macro understands the format syntax just enough to automatically
+/// infer the types of any given arguments and thus produce a valid pairing
+/// of format string and arguments. However, it achieves that by parsing the
+/// format string at compile time and so the format string must always be
+/// a quoted string constant.
+///
+/// ```rust
+/// let val = 5;
+/// let message = evegfx::eve_format!("The current value is %d", val);
+/// println!("Message is {:?}", message);
+/// ```
+///
+/// The coprocessor's formatter serves a similar purpose as Rust's own
+/// format functionality, but since the actual formatting operation happens
+/// inside the EVE coprocessor we can avoid including the potentially-large
+/// formatting code in memory-constrained systems. The EVE formatter can also
+/// interpolate strings already stored in the EVE RAM, via the `%s` verb, which
+/// Rust's own formatter doesn't have direct access to.
+pub use evegfx_macros::eve_format;
 pub use graphics_mode::{EVEGraphicsTimings, EVERGBElectricalMode};
 pub use init::EVEClockSource;
 pub use interface::EVEInterface;

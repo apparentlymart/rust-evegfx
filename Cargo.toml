@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "evegfx",
+  "evegfx-macros",
   "evegfx-hal",
   "evegfx-spidriver",
   "evegfx-cli",

@@ -34,6 +34,9 @@ const GAMEDUINO_HDMI_720P: evegfx::graphics_mode::EVEGraphicsTimings =
 fn main() {
     println!("Hello, world!");
 
+    let msg = evegfx::eve_format!("hello %d %x %c", 4, 6, 'd');
+    println!("message is {:?}", msg);
+
     let serial = Serial::new(
         Path::new("/dev/ttyUSB0"),
         &PortSettings {
