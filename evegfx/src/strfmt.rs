@@ -8,8 +8,7 @@
 ///
 /// ```rust
 /// let val = 5;
-/// let message = evegfx::eve_format!("The current value is %d", val);
-/// println!("Message is {:?}", message);
+/// println!("Message is {:?}", evegfx::eve_format!("The current value is %d", val));
 /// ```
 ///
 /// `Message` can also represent messages that won't be formatted at all,

@@ -17,13 +17,12 @@ pub mod strfmt;
 /// This macro understands the format syntax just enough to automatically
 /// infer the types of any given arguments and thus produce a valid pairing
 /// of format string and arguments. However, it achieves that by parsing the
-/// format string at compile time and so the format string must always be
+/// format string at compile tLowLevelthe format string must always be
 /// a quoted string constant.
 ///
 /// ```rust
 /// let val = 5;
-/// let message = evegfx::eve_format!("The current value is %d", val);
-/// println!("Message is {:?}", message);
+/// println!("Message is {:?}", evegfx::eve_format!("The current value is %d", val));
 /// ```
 ///
 /// The coprocessor's formatter serves a similar purpose as Rust's own
@@ -35,16 +34,16 @@ pub mod strfmt;
 pub use evegfx_macros::eve_format;
 pub use graphics_mode::{EVEGraphicsTimings, EVERGBElectricalMode};
 pub use init::EVEClockSource;
-pub use interface::EVEInterface;
+pub use interface::Interface;
 
-pub struct EVE<I: EVEInterface> {
-    pub(crate) ll: low_level::EVELowLevel<I>,
+pub struct EVE<I: Interface> {
+    pub(crate) ll: low_level::LowLevel<I>,
 }
 
-impl<I: EVEInterface> EVE<I> {
+impl<I: Interface> EVE<I> {
     pub fn new(ei: I) -> Self {
         Self {
-            ll: low_level::EVELowLevel::new(ei),
+            ll: low_level::LowLevel::new(ei),
         }
     }
 
@@ -57,13 +56,13 @@ impl<I: EVEInterface> EVE<I> {
         self.ll.borrow_interface()
     }
 
-    /// Consumes the `EVE` object and returns an instance of `EVELowLevel`
+    /// Consumes the `EVE` object and returns an instance of `LowLevel`
     /// that uses the same interface.
-    pub fn take_low_level(self) -> low_level::EVELowLevel<I> {
+    pub fn take_low_level(self) -> low_level::LowLevel<I> {
         self.ll
     }
 
-    pub fn borrow_low_level<'a>(&'a mut self) -> &'a mut low_level::EVELowLevel<I> {
+    pub fn borrow_low_level<'a>(&'a mut self) -> &'a mut low_level::LowLevel<I> {
         &mut self.ll
     }
 
@@ -105,7 +104,7 @@ impl<I: EVEInterface> EVE<I> {
         init::configure_video_pins(self, mode)
     }
 
-    /// Configures registers to achieve a particular graphics mode with the
+    /// Configures registers to achieve a particular graphics mode wLowLevel
     /// given timings.
     ///
     /// You should typically call `start_system_clock` first, using the
@@ -125,7 +124,7 @@ impl<I: EVEInterface> EVE<I> {
 
     pub fn new_display_list<
         F: FnOnce(
-            &mut display_list::JustEVEDisplayListBuilder<low_level::EVELowLevel<I>>,
+            &mut display_list::JustEVEDisplayListBuilder<low_level::LowLevel<I>>,
         ) -> Result<(), I::Error>,
     >(
         &mut self,

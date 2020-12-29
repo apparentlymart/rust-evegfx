@@ -1,7 +1,7 @@
 use core::cmp::PartialOrd;
 use core::convert::TryFrom;
 
-/// Implementations of `EVEInterface` serve as adapters between the interface
+/// Implementations of `Interface` serve as adapters between the interface
 /// this library expects and a specific physical implementation of that
 /// interface, such as a SPI bus.
 ///
@@ -9,7 +9,7 @@ use core::convert::TryFrom;
 /// make the library portable across systems big and small. Other crates,
 /// including some with the name prefix `evegfx`, take on additional
 /// dependencies in order to bind this library to specific systems/hardware.
-pub trait EVEInterface {
+pub trait Interface {
     type Error;
 
     fn begin_write(&mut self, addr: EVEAddress) -> Result<(), Self::Error>;
@@ -383,7 +383,7 @@ impl From<EVECommand> for u8 {
 /// The chip ID data is in the general RAM space, so you should read it
 /// only during early startup, before an application has potentially written
 /// other data over the top of it.
-pub fn read_chip_id<I: EVEInterface>(ei: &mut I) -> Result<[u8; 4], I::Error> {
+pub fn read_chip_id<I: Interface>(ei: &mut I) -> Result<[u8; 4], I::Error> {
     let mut into: [u8; 4] = [0; 4];
     ei.read(EVEAddress::force_raw(0xC0000), &mut into)?;
     Ok(into)
@@ -395,7 +395,7 @@ pub fn read_chip_id<I: EVEInterface>(ei: &mut I) -> Result<[u8; 4], I::Error> {
 pub mod testing {
     extern crate std;
 
-    use super::{EVEAddress, EVECommand, EVEInterface};
+    use super::{EVEAddress, EVECommand, Interface};
     use std::collections::HashMap;
     use std::vec::Vec;
 
@@ -476,7 +476,7 @@ pub mod testing {
     #[derive(Debug)]
     pub struct MockError();
 
-    impl EVEInterface for MockInterface {
+    impl Interface for MockInterface {
         type Error = MockError;
 
         fn begin_write(&mut self, addr: EVEAddress) -> core::result::Result<(), Self::Error> {

@@ -1,35 +1,35 @@
 use crate::display_list::DLCmd;
 use crate::host_commands::EVEHostCmd;
-use crate::interface::{EVEAddress, EVEAddressRegion, EVEInterface};
+use crate::interface::{EVEAddress, EVEAddressRegion, Interface};
 
-/// `EVELowLevel` is a low-level interface to EVE controllers which matches
+/// `LowLevel` is a low-level interface to EVE controllers which matches
 /// the primitive operations used in Programmers Guides for the various
 /// EVE controllers.
 ///
-/// This is slightly higher-level than the `EVEInterface` trait, providing
+/// This is slightly higher-level than the `Interface` trait, providing
 /// size-specific memory accesses, but doesn't have any special knowledge
 /// about the memory map or command set of any particular EVE implementation.
 ///
 /// This struct tracks a "cursor" for appending display list entries using
 /// the `dl` method. Use `dl_reset` to reset that cursor to the beginning of
 /// display list memory, which you'll typically (but not necessarily) do after
-/// writing `REG_DLSWAP` to swap the display list double buffer. `EVELowLevel`
+/// writing `REG_DLSWAP` to swap the display list double buffer. `LowLevel`
 /// doesn't manage display list buffer swapping itself, only the cursor for
 /// the next `dl` call.
-pub struct EVELowLevel<I: EVEInterface> {
+pub struct LowLevel<I: Interface> {
     raw: I,
     next_dl: EVEAddress,
 }
 
-impl<I: EVEInterface> EVELowLevel<I> {
+impl<I: Interface> LowLevel<I> {
     pub fn new(interface: I) -> Self {
-        Self {
+        LowLevel {
             raw: interface,
             next_dl: EVEAddressRegion::RAM_DL.base,
         }
     }
 
-    /// Consumes the `EVELowLevel` object and returns the interface it was
+    /// Consumes the `LowLevel` object and returns the interface it was
     /// originally created with.
     pub fn take_interface(self) -> I {
         self.raw
@@ -110,7 +110,7 @@ impl<I: EVEInterface> EVELowLevel<I> {
     }
 }
 
-impl<I: EVEInterface> crate::display_list::EVEDisplayListBuilder for EVELowLevel<I> {
+impl<I: Interface> crate::display_list::EVEDisplayListBuilder for LowLevel<I> {
     type Error = I::Error;
 
     fn append_raw_command(&mut self, raw: u32) -> core::result::Result<(), I::Error> {
@@ -131,10 +131,10 @@ mod tests {
     use crate::interface::{EVEAddress, EVEAddressRegion, EVECommand};
     use std::vec;
 
-    fn test_obj<F: FnOnce(&mut MockInterface)>(setup: F) -> EVELowLevel<MockInterface> {
+    fn test_obj<F: FnOnce(&mut MockInterface)>(setup: F) -> LowLevel<MockInterface> {
         let mut interface = MockInterface::new();
         setup(&mut interface);
-        EVELowLevel::new(interface)
+        LowLevel::new(interface)
     }
 
     #[test]

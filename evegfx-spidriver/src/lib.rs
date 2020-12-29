@@ -1,7 +1,7 @@
 #![no_std]
 
 use embedded_hal::serial::{Read, Write};
-use evegfx::interface::{EVEAddress, EVECommand, EVEInterface};
+use evegfx::interface::{EVEAddress, EVECommand, Interface};
 use spidriver::SPIDriver;
 
 pub struct EVESPIDriverInterface<TX, RX>
@@ -21,9 +21,9 @@ where
         Self { sd: sd }
     }
 
-    fn with_cs<F, R>(&mut self, func: F) -> Result<R, <Self as EVEInterface>::Error>
+    fn with_cs<F, R>(&mut self, func: F) -> Result<R, <Self as Interface>::Error>
     where
-        F: FnOnce(&mut Self) -> Result<R, <Self as EVEInterface>::Error>,
+        F: FnOnce(&mut Self) -> Result<R, <Self as Interface>::Error>,
     {
         self.sd.select()?;
         let result = func(self);
@@ -32,7 +32,7 @@ where
     }
 }
 
-impl<TX, RX> EVEInterface for EVESPIDriverInterface<TX, RX>
+impl<TX, RX> Interface for EVESPIDriverInterface<TX, RX>
 where
     TX: Write<u8>,
     RX: Read<u8>,

@@ -1,11 +1,11 @@
-use crate::{EVEInterface, EVE};
+use crate::{Interface, EVE};
 
 pub enum EVEClockSource {
     Internal,
     External,
 }
 
-pub(crate) fn activate_system_clock<I: EVEInterface>(
+pub(crate) fn activate_system_clock<I: Interface>(
     eve: &mut EVE<I>,
     source: crate::init::EVEClockSource,
     mode: crate::graphics_mode::EVEGraphicsTimings,
@@ -54,7 +54,7 @@ pub(crate) fn activate_system_clock<I: EVEInterface>(
 // ID register. Will poll the number of times given in `poll_limit` before
 // giving up and returning `Ok(false)`. Will return `Ok(true)` as soon as
 // a poll returns the ready value.
-pub(crate) fn poll_for_boot<I: EVEInterface>(
+pub(crate) fn poll_for_boot<I: Interface>(
     eve: &mut EVE<I>,
     poll_limit: u32,
 ) -> Result<bool, I::Error> {
@@ -78,7 +78,7 @@ pub(crate) fn poll_for_boot<I: EVEInterface>(
     return Ok(false);
 }
 
-pub(crate) fn activate_pixel_clock<I: EVEInterface>(
+pub(crate) fn activate_pixel_clock<I: Interface>(
     eve: &mut EVE<I>,
     c: crate::graphics_mode::EVEGraphicsTimings,
 ) -> Result<(), I::Error> {
@@ -109,7 +109,7 @@ pub(crate) fn activate_pixel_clock<I: EVEInterface>(
     Ok(())
 }
 
-pub(crate) fn configure_video_pins<I: EVEInterface>(
+pub(crate) fn configure_video_pins<I: Interface>(
     eve: &mut EVE<I>,
     _mode: crate::graphics_mode::EVERGBElectricalMode,
 ) -> Result<(), I::Error> {

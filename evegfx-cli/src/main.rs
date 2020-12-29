@@ -5,7 +5,7 @@
 
 use evegfx::display_list::EVEDisplayListBuilder;
 use evegfx::interface::{EVEAddress, EVECommand};
-use evegfx::{EVEInterface, EVE};
+use evegfx::{Interface, EVE};
 use serial_embedded_hal::{PortSettings, Serial};
 use spidriver::SPIDriver;
 use std::path::Path;
@@ -58,7 +58,7 @@ fn main() {
     eve_interface.clear_fake_delay();
 
     //eve_interface.reset().unwrap();
-    //let mut ll = evegfx::low_level::EVELowLevel::new(eve_interface);
+    //let mut ll = evegfx::low_level::LowLevel::new(eve_interface);
     /*
     ll.host_command(evegfx::host_commands::EVEHostCmd::ACTIVE, 0, 0)
         .unwrap();
@@ -214,23 +214,23 @@ fn must<T, E>(result: Result<T, E>) -> T {
     }
 }
 
-fn show_register<I: EVEInterface>(
-    ll: &mut evegfx::low_level::EVELowLevel<I>,
+fn show_register<I: Interface>(
+    ll: &mut evegfx::low_level::LowLevel<I>,
     reg: evegfx::registers::EVERegister,
 ) {
     let v = ll.rd32(reg.into()).unwrap_or(0xf33df4c3);
     println!("Register {:?} contains {:#010x}", reg, v);
 }
 
-fn show_mem_rd32<I: EVEInterface>(
-    ll: &mut evegfx::low_level::EVELowLevel<I>,
+fn show_mem_rd32<I: Interface>(
+    ll: &mut evegfx::low_level::LowLevel<I>,
     addr: evegfx::interface::EVEAddress,
 ) {
     let v = ll.rd32(addr).unwrap_or(0xf33df4c3);
     println!("At {:?} we have {:#010x}", addr, v);
 }
 
-fn show_current_dl<I: EVEInterface>(ll: &mut evegfx::low_level::EVELowLevel<I>) {
+fn show_current_dl<I: Interface>(ll: &mut evegfx::low_level::LowLevel<I>) {
     let mut offset = 0 as u32;
     let base = evegfx::interface::EVEAddressRegion::RAM_DL.base;
     let length = evegfx::interface::EVEAddressRegion::RAM_DL.length;
@@ -248,14 +248,14 @@ fn show_current_dl<I: EVEInterface>(ll: &mut evegfx::low_level::EVELowLevel<I>) 
     }
 }
 
-/// An `EVEInterface` that wraps another `EVEInterface` and then logs all
+/// An `Interface` that wraps another `Interface` and then logs all
 /// of the operations on it, for debugging purposes.
-struct LogInterface<W: EVEInterface> {
+struct LogInterface<W: Interface> {
     w: W,
     fake_delay: Option<std::time::Duration>,
 }
 
-impl<W: EVEInterface> LogInterface<W> {
+impl<W: Interface> LogInterface<W> {
     pub fn new(wrapped: W) -> Self {
         Self {
             w: wrapped,
@@ -286,7 +286,7 @@ impl<W: EVEInterface> LogInterface<W> {
     }
 }
 
-impl<W: EVEInterface> EVEInterface for LogInterface<W> {
+impl<W: Interface> Interface for LogInterface<W> {
     type Error = W::Error;
 
     fn reset(&mut self) -> std::result::Result<(), Self::Error> {
@@ -349,12 +349,12 @@ impl<W: EVEInterface> EVEInterface for LogInterface<W> {
     }
 }
 
-struct LogWaiter<I: EVEInterface, W: evegfx::commands::EVECoprocessorWaiter<I>> {
+struct LogWaiter<I: Interface, W: evegfx::commands::EVECoprocessorWaiter<I>> {
     w: W,
     _ei: core::marker::PhantomData<I>,
 }
 
-impl<I: EVEInterface, W: evegfx::commands::EVECoprocessorWaiter<I>> LogWaiter<I, W> {
+impl<I: Interface, W: evegfx::commands::EVECoprocessorWaiter<I>> LogWaiter<I, W> {
     fn new(wrapped: W) -> Self {
         Self {
             w: wrapped,
@@ -363,14 +363,14 @@ impl<I: EVEInterface, W: evegfx::commands::EVECoprocessorWaiter<I>> LogWaiter<I,
     }
 }
 
-impl<I: EVEInterface, W: evegfx::commands::EVECoprocessorWaiter<I>>
+impl<I: Interface, W: evegfx::commands::EVECoprocessorWaiter<I>>
     evegfx::commands::EVECoprocessorWaiter<I> for LogWaiter<I, W>
 {
     type Error = W::Error;
 
     fn wait_for_space(
         &mut self,
-        ll: &mut evegfx::low_level::EVELowLevel<I>,
+        ll: &mut evegfx::low_level::LowLevel<I>,
         need: u16,
     ) -> std::result::Result<u16, W::Error> {
         println!(

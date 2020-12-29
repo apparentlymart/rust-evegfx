@@ -2,9 +2,9 @@
 
 use embedded_hal::blocking::spi::{Transfer, Write};
 use embedded_hal::digital::v2::OutputPin;
-use evegfx::interface::{EVEAddress, EVECommand, EVEInterface};
+use evegfx::interface::{EVEAddress, EVECommand, Interface};
 
-/// `EVEHALSPIInterface` is an implementation of `evegfx.EVEInterface` that
+/// `EVEHALSPIInterface` is an implementation of `evegfx.Interface` that
 /// commincates over SPI using the `embedded-hal` SPI and GPIO (for
 /// "chip select") traits.
 pub struct EVEHALSPIInterface<SPI, CS>
@@ -31,9 +31,9 @@ where
         Self { spi: spi, cs: cs }
     }
 
-    fn with_cs<F, R>(&mut self, func: F) -> Result<R, <Self as EVEInterface>::Error>
+    fn with_cs<F, R>(&mut self, func: F) -> Result<R, <Self as Interface>::Error>
     where
-        F: FnOnce(&mut Self) -> Result<R, <Self as EVEInterface>::Error>,
+        F: FnOnce(&mut Self) -> Result<R, <Self as Interface>::Error>,
     {
         self.spi_select()?;
         let result = func(self);
@@ -41,15 +41,15 @@ where
         result
     }
 
-    fn spi_select(&mut self) -> Result<(), <Self as EVEInterface>::Error> {
-        <Self as EVEInterface>::Error::cs_result(self.cs.set_low())
+    fn spi_select(&mut self) -> Result<(), <Self as Interface>::Error> {
+        <Self as Interface>::Error::cs_result(self.cs.set_low())
     }
 
-    fn spi_unselect(&mut self) -> Result<(), <Self as EVEInterface>::Error> {
-        <Self as EVEInterface>::Error::cs_result(self.cs.set_high())
+    fn spi_unselect(&mut self) -> Result<(), <Self as Interface>::Error> {
+        <Self as Interface>::Error::cs_result(self.cs.set_high())
     }
 
-    fn spi_write(&mut self, words: &[u8]) -> Result<(), <Self as EVEInterface>::Error> {
+    fn spi_write(&mut self, words: &[u8]) -> Result<(), <Self as Interface>::Error> {
         let r = self.spi.write(words);
         self.spi_write_result(r)
     }
@@ -57,7 +57,7 @@ where
     fn spi_transfer<'w>(
         &mut self,
         words: &'w mut [u8],
-    ) -> Result<&'w [u8], <Self as EVEInterface>::Error> {
+    ) -> Result<&'w [u8], <Self as Interface>::Error> {
         let r = self.spi.transfer(words);
         self.spi_transfer_result(r)
     }
@@ -65,19 +65,19 @@ where
     fn spi_write_result<T>(
         &self,
         r: Result<T, <SPI as Write<u8>>::Error>,
-    ) -> Result<T, <Self as EVEInterface>::Error> {
-        <Self as EVEInterface>::Error::spi_write_result(r)
+    ) -> Result<T, <Self as Interface>::Error> {
+        <Self as Interface>::Error::spi_write_result(r)
     }
 
     fn spi_transfer_result<T>(
         &self,
         r: Result<T, <SPI as Transfer<u8>>::Error>,
-    ) -> Result<T, <Self as EVEInterface>::Error> {
-        <Self as EVEInterface>::Error::spi_transfer_result(r)
+    ) -> Result<T, <Self as Interface>::Error> {
+        <Self as Interface>::Error::spi_transfer_result(r)
     }
 }
 
-impl<SPI, CS> EVEInterface for EVEHALSPIInterface<SPI, CS>
+impl<SPI, CS> Interface for EVEHALSPIInterface<SPI, CS>
 where
     SPI: Transfer<u8> + Write<u8>,
     CS: OutputPin,
