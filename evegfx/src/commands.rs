@@ -3,6 +3,11 @@ use crate::models::Model;
 use crate::registers::EVERegister;
 use crate::Interface;
 
+pub type Result<T, M, I, W> = core::result::Result<
+    T,
+    EVECoprocessorError<<I as Interface>::Error, <W as EVECoprocessorWaiter<M, I>>::Error>,
+>;
+
 /// An interface to the command ring buffer for the EVE chip's coprocessor
 /// component.
 ///
@@ -34,7 +39,7 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
     /// so it isn't safe to do any other concurrent access. You can get
     /// the underlying interface back again if you need it using some of
     /// the methods of `EVECoprocessor`.
-    pub fn new(ei: I, wait: W) -> Result<Self, EVECoprocessorError<Self>> {
+    pub fn new(ei: I, wait: W) -> Result<Self, M, I, W> {
         let mut ll = crate::low_level::LowLevel::new(ei);
 
         // We'll pulse the reset signal for the coprocessor just to make sure
@@ -98,7 +103,7 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
     ///
     /// To make temporary use of the underlying interface, without also
     /// discarding the coprocessor object, use `with_interface` instead.
-    pub fn take_interface(mut self) -> Result<I, EVECoprocessorError<Self>> {
+    pub fn take_interface(mut self) -> Result<I, M, I, W> {
         self.stop_stream()?;
         return Ok(self.ll.take_interface());
     }
@@ -107,10 +112,10 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
     /// coprocessor object's underlying `Interface`, temporarily pausing
     /// local coprocessor management so the closure can make use of other
     /// chip functionality.
-    pub fn with_interface<R, F: FnOnce(&mut I) -> Result<R, EVECoprocessorError<Self>>>(
+    pub fn with_interface<R, F: FnOnce(&mut I) -> Result<R, M, I, W>>(
         &mut self,
         f: F,
-    ) -> Result<R, EVECoprocessorError<Self>> {
+    ) -> Result<R, M, I, W> {
         let stopped = self.stop_stream()?;
         let result = {
             let ei = self.ll.borrow_interface();
@@ -124,7 +129,7 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
     }
 
     // Update our internal records to match the state of the remote chip.
-    fn synchronize(&mut self, _stopped: &StoppedStream) -> Result<(), EVECoprocessorError<Self>> {
+    fn synchronize(&mut self, _stopped: &StoppedStream) -> Result<(), M, I, W> {
         let known_space =
             Self::interface_result(self.ll.rd16(self.ll.reg_ptr(EVERegister::CMDB_SPACE)))?;
         self.known_space = known_space;
@@ -149,7 +154,7 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
 
     // `start_stream` consumes the StoppedStream token because by the time it
     // returns the stream isn't stopped anymore.
-    fn start_stream(&mut self, stopped: StoppedStream) -> Result<(), EVECoprocessorError<Self>> {
+    fn start_stream(&mut self, stopped: StoppedStream) -> Result<(), M, I, W> {
         // We now begin a write transaction at the next offset, so subsequent
         // command writes can just go directly into that active transaction.
         // This relies on the fact that EVE has a special behavior where
@@ -163,7 +168,7 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
     // `stop_stream` produces a StoppedStream token to represent that it has
     // stopped the stream and thus the caller can safely perform operations
     // that expect the stream to be stopped.
-    fn stop_stream(&mut self) -> Result<StoppedStream, EVECoprocessorError<Self>> {
+    fn stop_stream(&mut self) -> Result<StoppedStream, M, I, W> {
         // This just closes the long-lived write transaction we started in
         // start_stream.
         let ei = self.ll.borrow_interface();
@@ -171,11 +176,11 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
         Ok(StoppedStream)
     }
 
-    fn write_stream<F: FnOnce(&mut Self) -> Result<(), EVECoprocessorError<Self>>>(
+    fn write_stream<F: FnOnce(&mut Self) -> Result<(), M, I, W>>(
         &mut self,
         len: u16,
         f: F,
-    ) -> Result<(), EVECoprocessorError<Self>> {
+    ) -> Result<(), M, I, W> {
         self.ensure_space(len)?;
 
         // We just assume that our stream will always be active here and
@@ -189,7 +194,7 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
 
     // Block using our waiter until there's at least `need` bytes of free space
     // in the ring buffer.
-    fn ensure_space(&mut self, need: u16) -> Result<(), EVECoprocessorError<Self>> {
+    fn ensure_space(&mut self, need: u16) -> Result<(), M, I, W> {
         if self.known_space >= need {
             // Fast path: our local tracking knows there's enough space. In
             // this case we can avoid stopping our burst-writing stream, which
@@ -216,7 +221,7 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
     // there's sufficient space in the buffer, so the caller should call
     // ensure_space first to wait until there's enough space for the full
     // message it intends to write.
-    fn write_to_buffer(&mut self, v: u32) -> Result<(), EVECoprocessorError<Self>> {
+    fn write_to_buffer(&mut self, v: u32) -> Result<(), M, I, W> {
         let data: [u8; 4] = [v as u8, (v >> 8) as u8, (v >> 16) as u8, (v >> 24) as u8];
         let ei = self.ll.borrow_interface();
         let result = Self::interface_result(ei.continue_write(&data));
@@ -231,14 +236,14 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
         result
     }
 
-    fn interface_result<T>(result: Result<T, I::Error>) -> Result<T, EVECoprocessorError<Self>> {
+    fn interface_result<T>(result: core::result::Result<T, I::Error>) -> Result<T, M, I, W> {
         match result {
             Ok(v) => Ok(v),
             Err(err) => Err(EVECoprocessorError::Interface(err)),
         }
     }
 
-    fn waiter_result<T>(result: Result<T, W::Error>) -> Result<T, EVECoprocessorError<Self>> {
+    fn waiter_result<T>(result: core::result::Result<T, W::Error>) -> Result<T, M, I, W> {
         match result {
             Ok(v) => Ok(v),
             Err(err) => Err(EVECoprocessorError::Waiter(err)),
@@ -256,7 +261,7 @@ impl<M: Model, I: Interface> EVECoprocessor<M, I, PollingCoprocessorWaiter<M, I>
     /// waiter that can put your main processor to sleep while waiting,
     /// for better power usage compared to the default busy-polling
     /// implementation.
-    pub fn new_polling(ei: I) -> Result<Self, EVECoprocessorError<Self>> {
+    pub fn new_polling(ei: I) -> Result<Self, M, I, PollingCoprocessorWaiter<M, I>> {
         let w: PollingCoprocessorWaiter<M, I> = PollingCoprocessorWaiter::new();
         Self::new(ei, w)
     }
@@ -275,24 +280,24 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
     /// directly on the coprocessor object, but it's best to avoid any action
     /// that interacts with anything outside of the coprocessor. It _definitely_
     /// doesn't make sense to recursively call into `new_display_list` again.
-    pub fn new_display_list<F>(&mut self, f: F) -> Result<(), EVECoprocessorError<Self>>
+    pub fn new_display_list<F>(&mut self, f: F) -> Result<(), M, I, W>
     where
-        F: FnOnce(&mut Self) -> Result<(), EVECoprocessorError<Self>>,
+        F: FnOnce(&mut Self) -> Result<(), M, I, W>,
     {
         self.start_display_list()?;
         f(self)?;
         self.display_list_swap()
     }
 
-    pub fn show_testcard(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+    pub fn show_testcard(&mut self) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF61))
     }
 
-    pub fn show_manufacturer_logo(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+    pub fn show_manufacturer_logo(&mut self) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF31))
     }
 
-    pub fn start_spinner(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+    pub fn start_spinner(&mut self) -> Result<(), M, I, W> {
         // TODO: Make the spinner customizable.
         self.write_stream(20, |cp| {
             cp.write_to_buffer(0xFFFFFF16)?;
@@ -303,11 +308,11 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
         })
     }
 
-    pub fn start_display_list(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+    pub fn start_display_list(&mut self) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF00))
     }
 
-    pub fn display_list_swap(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+    pub fn display_list_swap(&mut self) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF01))
     }
 
@@ -315,29 +320,26 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
         &mut self,
         _msg: crate::strfmt::Message<M::MainMem>,
         // TODO: other options too
-    ) -> Result<(), EVECoprocessorError<Self>> {
+    ) -> Result<(), M, I, W> {
         todo!();
     }
 
-    pub fn append_display_list(
-        &mut self,
-        cmd: crate::display_list::DLCmd,
-    ) -> Result<(), EVECoprocessorError<Self>> {
+    pub fn append_display_list(&mut self, cmd: crate::display_list::DLCmd) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(cmd.as_raw()))
     }
 
-    pub fn append_raw_word(&mut self, word: u32) -> Result<(), EVECoprocessorError<Self>> {
+    pub fn append_raw_word(&mut self, word: u32) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(word))
     }
 
-    pub fn wait_microseconds(&mut self, delay: u32) -> Result<(), EVECoprocessorError<Self>> {
+    pub fn wait_microseconds(&mut self, delay: u32) -> Result<(), M, I, W> {
         self.write_stream(8, |cp| {
             cp.write_to_buffer(0xFFFFFF65)?;
             cp.write_to_buffer(delay)
         })
     }
 
-    pub fn wait_video_scanout(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+    pub fn wait_video_scanout(&mut self) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF42))
     }
 }
@@ -352,7 +354,7 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
 impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I, W> {
     /// Blocks until the coprocessor buffer is empty, signalling that the
     /// coprocessor has completed all of the commands issued so far.
-    pub fn block_until_idle(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+    pub fn block_until_idle(&mut self) -> Result<(), M, I, W> {
         self.ensure_space(4092)
     }
 
@@ -361,7 +363,7 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
     /// with the video framerate.
     ///
     /// This is a blocking version of `wait_video_scanout`.
-    pub fn block_until_video_scanout(&mut self) -> Result<(), EVECoprocessorError<Self>> {
+    pub fn block_until_video_scanout(&mut self) -> Result<(), M, I, W> {
         self.wait_video_scanout()?;
         self.block_until_idle()
     }
@@ -380,26 +382,18 @@ where
     I: Interface,
     W: EVECoprocessorWaiter<M, I>,
 {
-    type Error = EVECoprocessorError<Self>;
+    type Error = EVECoprocessorError<I::Error, W::Error>;
 
-    fn append_raw_command(
-        &mut self,
-        raw: u32,
-    ) -> core::result::Result<(), EVECoprocessorError<Self>> {
+    fn append_raw_command(&mut self, raw: u32) -> core::result::Result<(), Self::Error> {
         self.append_raw_word(raw)
     }
 
     fn append_command(
         &mut self,
         cmd: crate::display_list::DLCmd,
-    ) -> core::result::Result<(), EVECoprocessorError<Self>> {
+    ) -> core::result::Result<(), Self::Error> {
         self.append_display_list(cmd)
     }
-}
-
-impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> Errorer for EVECoprocessor<M, I, W> {
-    type InterfaceError = I::Error;
-    type WaiterError = W::Error;
 }
 
 /// A `CoprocessorWaiter` is an object that knows how to block until the
@@ -414,22 +408,20 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> Errorer for EVECopro
 pub trait EVECoprocessorWaiter<M: Model, I: Interface> {
     type Error;
 
-    fn wait_for_space(&mut self, ell: &mut LowLevel<M, I>, need: u16) -> Result<u16, Self::Error>;
+    fn wait_for_space(
+        &mut self,
+        ell: &mut LowLevel<M, I>,
+        need: u16,
+    ) -> core::result::Result<u16, Self::Error>;
 }
 
 #[derive(Debug)]
-pub enum EVECoprocessorError<Emitter: Errorer> {
-    Interface(Emitter::InterfaceError),
-    Waiter(Emitter::WaiterError),
+pub enum EVECoprocessorError<IErr, WErr> {
+    Interface(IErr),
+    Waiter(WErr),
 }
 
-/// Implemented by types that can produce `EVECoprocessorError` errors.
-pub trait Errorer {
-    type InterfaceError;
-    type WaiterError;
-}
-
-pub(crate) struct PollingCoprocessorWaiter<M: Model, I: Interface> {
+pub struct PollingCoprocessorWaiter<M: Model, I: Interface> {
     _ei: core::marker::PhantomData<I>,
     _m: core::marker::PhantomData<M>,
 }
@@ -446,7 +438,11 @@ impl<M: Model, I: Interface> PollingCoprocessorWaiter<M, I> {
 impl<M: Model, I: Interface> EVECoprocessorWaiter<M, I> for PollingCoprocessorWaiter<M, I> {
     type Error = I::Error;
 
-    fn wait_for_space(&mut self, ell: &mut LowLevel<M, I>, need: u16) -> Result<u16, Self::Error> {
+    fn wait_for_space(
+        &mut self,
+        ell: &mut LowLevel<M, I>,
+        need: u16,
+    ) -> core::result::Result<u16, Self::Error> {
         loop {
             let known_space = ell.rd16(ell.reg_ptr(EVERegister::CMDB_SPACE))?;
             if known_space >= need {
@@ -467,21 +463,22 @@ mod tests {
     use std::vec;
     use std::vec::Vec;
 
+    type MockResult<T> =
+        Result<T, Exhaustive, MockInterface, PollingCoprocessorWaiter<Exhaustive, MockInterface>>;
+
     fn test_obj<F: FnOnce(&mut MockInterface)>(
         setup: F,
     ) -> EVECoprocessor<
         Exhaustive,
         MockInterface,
-        impl crate::commands::EVECoprocessorWaiter<Exhaustive, MockInterface>,
+        PollingCoprocessorWaiter<Exhaustive, MockInterface>,
     > {
         let mut interface = MockInterface::new();
         setup(&mut interface);
         unwrap_copro(Exhaustive::new(interface).coprocessor_polling())
     }
 
-    fn unwrap_copro<R, W: EVECoprocessorWaiter<Exhaustive, MockInterface>>(
-        v: Result<R, EVECoprocessorError<EVECoprocessor<Exhaustive, MockInterface, W>>>,
-    ) -> R {
+    fn unwrap_copro<R>(v: MockResult<R>) -> R {
         match v {
             Ok(v) => v,
             Err(err) => match err {

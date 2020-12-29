@@ -180,10 +180,8 @@ impl<M: Model, I: Interface> EVE<M, I> {
     pub fn coprocessor<W: commands::EVECoprocessorWaiter<M, I>>(
         self,
         waiter: W,
-    ) -> Result<
-        commands::EVECoprocessor<M, I, W>,
-        commands::EVECoprocessorError<commands::EVECoprocessor<M, I, W>>,
-    > {
+    ) -> Result<commands::EVECoprocessor<M, I, W>, commands::EVECoprocessorError<I::Error, W::Error>>
+    {
         let ei = self.ll.take_interface();
         commands::EVECoprocessor::new(ei, waiter)
     }
@@ -201,11 +199,11 @@ impl<M: Model, I: Interface> EVE<M, I> {
     /// the scanout to "catch up".
     pub fn coprocessor_polling(
         self,
-    ) -> Result<
-        commands::EVECoprocessor<M, I, impl commands::EVECoprocessorWaiter<M, I>>,
-        commands::EVECoprocessorError<
-            commands::EVECoprocessor<M, I, impl commands::EVECoprocessorWaiter<M, I>>,
-        >,
+    ) -> commands::Result<
+        commands::EVECoprocessor<M, I, commands::PollingCoprocessorWaiter<M, I>>,
+        M,
+        I,
+        commands::PollingCoprocessorWaiter<M, I>,
     > {
         let ei = self.ll.take_interface();
         commands::EVECoprocessor::new_polling(ei)
