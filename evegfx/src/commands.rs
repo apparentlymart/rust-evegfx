@@ -1,4 +1,5 @@
 use crate::low_level::LowLevel;
+use crate::models::Model;
 use crate::registers::EVERegister;
 use crate::Interface;
 
@@ -7,8 +8,8 @@ use crate::Interface;
 ///
 /// This object encapsulates the handling of the ring buffer and provides an
 /// API for appending
-pub struct EVECoprocessor<I: Interface, W: EVECoprocessorWaiter<I>> {
-    ll: LowLevel<I>,
+pub struct EVECoprocessor<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> {
+    ll: LowLevel<M, I>,
     wait: W,
 
     // `known_space` tracks the amount of available buffer space (in bytes) that
@@ -24,7 +25,7 @@ pub struct EVECoprocessor<I: Interface, W: EVECoprocessorWaiter<I>> {
     known_space: u16,
 }
 
-impl<I: Interface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
+impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I, W> {
     /// Consumes the given interface and waiter and returns an interface to
     /// the coprocessor via the given interface.
     ///
@@ -38,8 +39,8 @@ impl<I: Interface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
 
         // We'll pulse the reset signal for the coprocessor just to make sure
         // we're finding it in a known good state.
-        Self::interface_result(ll.wr8(EVERegister::CPURESET.into(), 0b001))?;
-        Self::interface_result(ll.wr8(EVERegister::CPURESET.into(), 0b000))?;
+        Self::interface_result(ll.wr8(ll.reg_ptr(EVERegister::CPURESET), 0b001))?;
+        Self::interface_result(ll.wr8(ll.reg_ptr(EVERegister::CPURESET), 0b000))?;
 
         let mut ret = Self {
             ll: ll,
@@ -74,9 +75,9 @@ impl<I: Interface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
     /// implementation that does additional logging or tracking of waiting,
     /// if needed for debugging or development, without needing to first
     /// determine what kind of waiter the object previously had.
-    pub fn with_new_waiter<W2, F>(self, f: F) -> EVECoprocessor<I, W2>
+    pub fn with_new_waiter<W2, F>(self, f: F) -> EVECoprocessor<M, I, W2>
     where
-        W2: EVECoprocessorWaiter<I>,
+        W2: EVECoprocessorWaiter<M, I>,
         F: FnOnce(W) -> W2,
     {
         let ll = self.ll;
@@ -124,7 +125,8 @@ impl<I: Interface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
 
     // Update our internal records to match the state of the remote chip.
     fn synchronize(&mut self, _stopped: &StoppedStream) -> Result<(), EVECoprocessorError<Self>> {
-        let known_space = Self::interface_result(self.ll.rd16(EVERegister::CMDB_SPACE.into()))?;
+        let known_space =
+            Self::interface_result(self.ll.rd16(self.ll.reg_ptr(EVERegister::CMDB_SPACE)))?;
         self.known_space = known_space;
         Ok(())
     }
@@ -134,14 +136,14 @@ impl<I: Interface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
         ll.borrow_interface()
     }
 
-    fn borrow_low_level<'a>(&'a mut self, _stopped: &StoppedStream) -> &'a mut LowLevel<I> {
+    fn borrow_low_level<'a>(&'a mut self, _stopped: &StoppedStream) -> &'a mut LowLevel<M, I> {
         &mut self.ll
     }
 
     fn borrow_low_level_and_waiter<'a>(
         &'a mut self,
         _stopped: &StoppedStream,
-    ) -> (&'a mut LowLevel<I>, &'a mut W) {
+    ) -> (&'a mut LowLevel<M, I>, &'a mut W) {
         (&mut self.ll, &mut self.wait)
     }
 
@@ -155,7 +157,7 @@ impl<I: Interface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
         // in the whole memory space, and so we can just keep writing and let
         // the chip worry about the wraparound for us.
         let ei = self.borrow_interface(&stopped);
-        Self::interface_result(ei.begin_write(EVERegister::CMDB_WRITE.address()))
+        Self::interface_result(ei.begin_write(M::reg_ptr(EVERegister::CMDB_WRITE).to_raw()))
     }
 
     // `stop_stream` produces a StoppedStream token to represent that it has
@@ -244,7 +246,7 @@ impl<I: Interface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
     }
 }
 
-impl<I: Interface> EVECoprocessor<I, PollingCoprocessorWaiter<I>> {
+impl<M: Model, I: Interface> EVECoprocessor<M, I, PollingCoprocessorWaiter<M, I>> {
     /// Consumes the given interface and returns an interface to the
     /// coprocessor via the given interface, which will use busy-polling to
     /// wait when there isn't enough buffer space.
@@ -255,7 +257,7 @@ impl<I: Interface> EVECoprocessor<I, PollingCoprocessorWaiter<I>> {
     /// for better power usage compared to the default busy-polling
     /// implementation.
     pub fn new_polling(ei: I) -> Result<Self, EVECoprocessorError<Self>> {
-        let w: PollingCoprocessorWaiter<I> = PollingCoprocessorWaiter::new();
+        let w: PollingCoprocessorWaiter<M, I> = PollingCoprocessorWaiter::new();
         Self::new(ei, w)
     }
 }
@@ -265,7 +267,7 @@ impl<I: Interface> EVECoprocessor<I, PollingCoprocessorWaiter<I>> {
 /// These will block using the waiter if they run out of coprocessor buffer
 /// space, but they will not wait if there's enough buffer space available to
 /// write into.
-impl<I: Interface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
+impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I, W> {
     /// A convenience function for enclosing a series of coprocessor commands
     /// in `start_display_list` and `display_list_swap` commands.
     ///
@@ -339,7 +341,7 @@ impl<I: Interface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
 /// coprocessor commands have completed, and so applications making heavy
 /// use of these may wish to consider supplying a tailored waiter
 /// implementation that can avoid busy-waiting.
-impl<I: Interface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
+impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I, W> {
     /// Blocks until the coprocessor buffer is empty, signalling that the
     /// coprocessor has completed all of the commands issued so far.
     pub fn block_until_idle(&mut self) -> Result<(), EVECoprocessorError<Self>> {
@@ -364,10 +366,11 @@ impl<I: Interface, W: EVECoprocessorWaiter<I>> EVECoprocessor<I, W> {
 // type checker, not relevant at runtime.
 struct StoppedStream;
 
-impl<I, W> crate::display_list::EVEDisplayListBuilder for EVECoprocessor<I, W>
+impl<M, I, W> crate::display_list::EVEDisplayListBuilder for EVECoprocessor<M, I, W>
 where
+    M: Model,
     I: Interface,
-    W: EVECoprocessorWaiter<I>,
+    W: EVECoprocessorWaiter<M, I>,
 {
     type Error = EVECoprocessorError<Self>;
 
@@ -386,7 +389,7 @@ where
     }
 }
 
-impl<I: Interface, W: EVECoprocessorWaiter<I>> Errorer for EVECoprocessor<I, W> {
+impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> Errorer for EVECoprocessor<M, I, W> {
     type InterfaceError = I::Error;
     type WaiterError = W::Error;
 }
@@ -400,10 +403,10 @@ impl<I: Interface, W: EVECoprocessorWaiter<I>> Errorer for EVECoprocessor<I, W> 
 /// the only implementation available directly in this crate is one that
 /// busy-polls the register that tracks the buffer usage, because interaction
 /// with interrupts is always system-specific.
-pub trait EVECoprocessorWaiter<I: Interface> {
+pub trait EVECoprocessorWaiter<M: Model, I: Interface> {
     type Error;
 
-    fn wait_for_space(&mut self, ell: &mut LowLevel<I>, need: u16) -> Result<u16, Self::Error>;
+    fn wait_for_space(&mut self, ell: &mut LowLevel<M, I>, need: u16) -> Result<u16, Self::Error>;
 }
 
 #[derive(Debug)]
@@ -418,24 +421,26 @@ pub trait Errorer {
     type WaiterError;
 }
 
-pub(crate) struct PollingCoprocessorWaiter<I: Interface> {
+pub(crate) struct PollingCoprocessorWaiter<M: Model, I: Interface> {
     _ei: core::marker::PhantomData<I>,
+    _m: core::marker::PhantomData<M>,
 }
 
-impl<I: Interface> PollingCoprocessorWaiter<I> {
+impl<M: Model, I: Interface> PollingCoprocessorWaiter<M, I> {
     fn new() -> Self {
         Self {
             _ei: core::marker::PhantomData,
+            _m: core::marker::PhantomData,
         }
     }
 }
 
-impl<I: Interface> EVECoprocessorWaiter<I> for PollingCoprocessorWaiter<I> {
+impl<M: Model, I: Interface> EVECoprocessorWaiter<M, I> for PollingCoprocessorWaiter<M, I> {
     type Error = I::Error;
 
-    fn wait_for_space(&mut self, ell: &mut LowLevel<I>, need: u16) -> Result<u16, Self::Error> {
+    fn wait_for_space(&mut self, ell: &mut LowLevel<M, I>, need: u16) -> Result<u16, Self::Error> {
         loop {
-            let known_space = ell.rd16(EVERegister::CMDB_SPACE.into())?;
+            let known_space = ell.rd16(ell.reg_ptr(EVERegister::CMDB_SPACE))?;
             if known_space >= need {
                 return Ok(known_space);
             }
@@ -448,22 +453,26 @@ mod tests {
     extern crate std;
 
     use super::*;
-    use crate::interface::{EVEAddress, EVECommand};
-    use crate::registers::EVERegister::*;
+    use crate::interface::EVECommand;
+    use crate::memory::MemoryRegion;
+    use crate::models::testing::Exhaustive;
     use std::vec;
     use std::vec::Vec;
 
     fn test_obj<F: FnOnce(&mut MockInterface)>(
         setup: F,
-    ) -> EVECoprocessor<MockInterface, impl crate::commands::EVECoprocessorWaiter<MockInterface>>
-    {
+    ) -> EVECoprocessor<
+        Exhaustive,
+        MockInterface,
+        impl crate::commands::EVECoprocessorWaiter<Exhaustive, MockInterface>,
+    > {
         let mut interface = MockInterface::new();
         setup(&mut interface);
-        unwrap_copro(EVECoprocessor::new_polling(interface))
+        unwrap_copro(Exhaustive::new(interface).coprocessor_polling())
     }
 
-    fn unwrap_copro<R, W: EVECoprocessorWaiter<MockInterface>>(
-        v: Result<R, EVECoprocessorError<EVECoprocessor<MockInterface, W>>>,
+    fn unwrap_copro<R, W: EVECoprocessorWaiter<Exhaustive, MockInterface>>(
+        v: Result<R, EVECoprocessorError<EVECoprocessor<Exhaustive, MockInterface, W>>>,
     ) -> R {
         match v {
             Ok(v) => v,
@@ -600,8 +609,8 @@ mod tests {
 
     /// A test double for `trait Interface`, available only in test mode.
     pub struct MockInterface {
-        write_addr: Option<EVEAddress>,
-        read_addr: Option<EVEAddress>,
+        write_addr: Option<u32>,
+        read_addr: Option<u32>,
 
         pub(crate) current_space: u16,
 
@@ -633,8 +642,8 @@ mod tests {
     }
 
     impl MockInterface {
-        const SPACE_ADDR: EVEAddress = CMDB_SPACE.address();
-        const WRITE_ADDR: EVEAddress = CMDB_WRITE.address();
+        const SPACE_ADDR: u32 = <Exhaustive as Model>::RegisterMem::BASE_ADDR + 0x574;
+        const WRITE_ADDR: u32 = <Exhaustive as Model>::RegisterMem::BASE_ADDR + 0x578;
 
         pub fn new() -> Self {
             Self {
@@ -658,7 +667,7 @@ mod tests {
     impl Interface for MockInterface {
         type Error = MockError;
 
-        fn begin_write(&mut self, addr: EVEAddress) -> core::result::Result<(), Self::Error> {
+        fn begin_write(&mut self, addr: u32) -> core::result::Result<(), Self::Error> {
             if let Some(_) = self.write_addr {
                 return Err(MockError("begin_write when a write is already active"));
             }
@@ -712,7 +721,7 @@ mod tests {
             result
         }
 
-        fn begin_read(&mut self, addr: EVEAddress) -> core::result::Result<(), Self::Error> {
+        fn begin_read(&mut self, addr: u32) -> core::result::Result<(), Self::Error> {
             if let Some(_) = self.write_addr {
                 return Err(MockError("begin_read when a write is already active"));
             }

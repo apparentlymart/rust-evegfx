@@ -38,11 +38,16 @@ impl EVERegister {
     pub const fn address(self) -> EVEAddress {
         EVEAddressRegion::RAM_REG.offset(self as u32)
     }
+
+    pub fn ptr<M: crate::models::Model>(self) -> crate::memory::Ptr<M::RegisterMem> {
+        use crate::memory::MemoryRegion;
+        M::RegisterMem::ptr(self as u32)
+    }
 }
 
 impl core::convert::From<EVERegister> for EVEAddress {
-    fn from(cmd: EVERegister) -> Self {
-        cmd.address()
+    fn from(reg: EVERegister) -> Self {
+        reg.address()
     }
 }
 

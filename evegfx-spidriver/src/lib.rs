@@ -1,7 +1,7 @@
 #![no_std]
 
 use embedded_hal::serial::{Read, Write};
-use evegfx::interface::{EVEAddress, EVECommand, Interface};
+use evegfx::interface::{EVECommand, Interface};
 use spidriver::SPIDriver;
 
 pub struct EVESPIDriverInterface<TX, RX>
@@ -44,10 +44,10 @@ where
         self.sd.unselect()
     }
 
-    fn begin_write(&mut self, addr: EVEAddress) -> Result<(), Self::Error> {
+    fn begin_write(&mut self, addr: u32) -> Result<(), Self::Error> {
         self.sd.select()?;
         let mut addr_words: [u8; 3] = [0; 3];
-        addr.build_write_header(&mut addr_words);
+        self.build_write_header(addr, &mut addr_words);
         self.sd.write(&addr_words)
     }
 
@@ -59,10 +59,10 @@ where
         self.sd.unselect()
     }
 
-    fn begin_read(&mut self, addr: EVEAddress) -> Result<(), Self::Error> {
+    fn begin_read(&mut self, addr: u32) -> Result<(), Self::Error> {
         self.sd.select()?;
         let mut addr_words: [u8; 4] = [0; 4];
-        addr.build_read_header(&mut addr_words);
+        self.build_read_header(addr, &mut addr_words);
         self.sd.write(&addr_words)
     }
 

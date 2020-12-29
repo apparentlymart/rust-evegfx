@@ -3,8 +3,13 @@
 // of interfaces (Linux spidev, SPIDriver adapter, etc). For now though it's
 // just a small test bed for trying out the library crates in practice.
 
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 use evegfx::display_list::EVEDisplayListBuilder;
 use evegfx::interface::{EVEAddress, EVECommand};
+use evegfx::memory::MemoryRegion;
+use evegfx::models::Model;
 use evegfx::{Interface, EVE};
 use serial_embedded_hal::{PortSettings, Serial};
 use spidriver::SPIDriver;
@@ -34,8 +39,8 @@ const GAMEDUINO_HDMI_720P: evegfx::graphics_mode::EVEGraphicsTimings =
 fn main() {
     println!("Hello, world!");
 
-    let msg = evegfx::eve_format!("hello %d %x %c", 4, 6, 'd');
-    println!("message is {:?}", msg);
+    //let msg = evegfx::eve_format!("hello %d %x %c", 4, 6, 'd');
+    //println!("message is {:?}", msg);
 
     let serial = Serial::new(
         Path::new("/dev/ttyUSB0"),
@@ -96,7 +101,7 @@ fn main() {
 
     const TIMINGS: evegfx::graphics_mode::EVEGraphicsTimings = GAMEDUINO_HDMI_720P;
 
-    let mut eve = EVE::new(eve_interface);
+    let mut eve = evegfx::BT815::new(eve_interface);
     eve.start_system_clock(evegfx::EVEClockSource::Internal, TIMINGS)
         .unwrap();
     println!("Waiting for EVE boot...");
@@ -114,6 +119,7 @@ fn main() {
     })
     .unwrap();
     println!("Sending initial display list...");
+    /*
     eve.new_display_list(|b| {
         b.clear_color_rgb(evegfx::color::EVEColorRGB {
             r: 255,
@@ -136,6 +142,7 @@ fn main() {
         b.display()
     })
     .unwrap();
+    */
     println!("Activating the pixel clock...");
     eve.start_video(TIMINGS).unwrap();
 
@@ -214,31 +221,24 @@ fn must<T, E>(result: Result<T, E>) -> T {
     }
 }
 
-fn show_register<I: Interface>(
-    ll: &mut evegfx::low_level::LowLevel<I>,
+fn show_register<M: Model, I: Interface>(
+    ll: &mut evegfx::low_level::LowLevel<M, I>,
     reg: evegfx::registers::EVERegister,
 ) {
-    let v = ll.rd32(reg.into()).unwrap_or(0xf33df4c3);
+    let v = ll.rd32(M::reg_ptr(reg)).unwrap_or(0xf33df4c3);
     println!("Register {:?} contains {:#010x}", reg, v);
 }
 
-fn show_mem_rd32<I: Interface>(
-    ll: &mut evegfx::low_level::LowLevel<I>,
-    addr: evegfx::interface::EVEAddress,
-) {
-    let v = ll.rd32(addr).unwrap_or(0xf33df4c3);
-    println!("At {:?} we have {:#010x}", addr, v);
-}
-
-fn show_current_dl<I: Interface>(ll: &mut evegfx::low_level::LowLevel<I>) {
+fn show_current_dl<M: Model, I: Interface>(ll: &mut evegfx::low_level::LowLevel<M, I>) {
     let mut offset = 0 as u32;
-    let base = evegfx::interface::EVEAddressRegion::RAM_DL.base;
-    let length = evegfx::interface::EVEAddressRegion::RAM_DL.length;
+    let length = M::DisplayListMem::LENGTH;
     loop {
         if offset >= length {
             return;
         }
-        let v = ll.rd32(base + offset).unwrap_or(0xf33df4c3);
+        let v = ll
+            .rd32(M::DisplayListMem::ptr(offset))
+            .unwrap_or(0xf33df4c3);
         println!("{:#06x}: {:#010x}", offset, v);
         if (v & 0xff000000) == 0 {
             // DISPLAY command ends the display list.
@@ -294,8 +294,8 @@ impl<W: Interface> Interface for LogInterface<W> {
         Self::handle(self.w.reset(), self.fake_delay)
     }
 
-    fn begin_write(&mut self, addr: EVEAddress) -> std::result::Result<(), Self::Error> {
-        println!("- begin_write(/*{:#08x?}*/ {:?})", addr.raw(), addr);
+    fn begin_write(&mut self, addr: u32) -> std::result::Result<(), Self::Error> {
+        println!("- begin_write({:#08x?})", addr);
         Self::handle(self.w.begin_write(addr), self.fake_delay)
     }
 
@@ -309,8 +309,8 @@ impl<W: Interface> Interface for LogInterface<W> {
         Self::handle(self.w.end_write(), self.fake_delay)
     }
 
-    fn begin_read(&mut self, addr: EVEAddress) -> std::result::Result<(), Self::Error> {
-        println!("- begin_read(/*{:#08x?}*/ {:?})", addr.raw(), addr);
+    fn begin_read(&mut self, addr: u32) -> std::result::Result<(), Self::Error> {
+        println!("- begin_read({:#08x?})", addr);
         Self::handle(self.w.begin_read(addr), self.fake_delay)
     }
 
@@ -349,28 +349,30 @@ impl<W: Interface> Interface for LogInterface<W> {
     }
 }
 
-struct LogWaiter<I: Interface, W: evegfx::commands::EVECoprocessorWaiter<I>> {
+struct LogWaiter<M: Model, I: Interface, W: evegfx::commands::EVECoprocessorWaiter<M, I>> {
     w: W,
     _ei: core::marker::PhantomData<I>,
+    _m: core::marker::PhantomData<M>,
 }
 
-impl<I: Interface, W: evegfx::commands::EVECoprocessorWaiter<I>> LogWaiter<I, W> {
+impl<M: Model, I: Interface, W: evegfx::commands::EVECoprocessorWaiter<M, I>> LogWaiter<M, I, W> {
     fn new(wrapped: W) -> Self {
         Self {
             w: wrapped,
             _ei: core::marker::PhantomData,
+            _m: core::marker::PhantomData,
         }
     }
 }
 
-impl<I: Interface, W: evegfx::commands::EVECoprocessorWaiter<I>>
-    evegfx::commands::EVECoprocessorWaiter<I> for LogWaiter<I, W>
+impl<M: Model, I: Interface, W: evegfx::commands::EVECoprocessorWaiter<M, I>>
+    evegfx::commands::EVECoprocessorWaiter<M, I> for LogWaiter<M, I, W>
 {
     type Error = W::Error;
 
     fn wait_for_space(
         &mut self,
-        ll: &mut evegfx::low_level::LowLevel<I>,
+        ll: &mut evegfx::low_level::LowLevel<M, I>,
         need: u16,
     ) -> std::result::Result<u16, W::Error> {
         println!(
@@ -385,7 +387,7 @@ impl<I: Interface, W: evegfx::commands::EVECoprocessorWaiter<I>>
                     new_space, new_space
                 );
             }
-            Err(err) => {
+            Err(_) => {
                 println!("- failed while waiting for buffer space");
             }
         }

@@ -8,6 +8,8 @@ pub mod host_commands;
 pub mod init;
 pub mod interface;
 pub mod low_level;
+pub mod memory;
+pub mod models;
 pub mod registers;
 pub mod strfmt;
 
@@ -35,12 +37,15 @@ pub use evegfx_macros::eve_format;
 pub use graphics_mode::{EVEGraphicsTimings, EVERGBElectricalMode};
 pub use init::EVEClockSource;
 pub use interface::Interface;
+pub use models::bt815::BT815;
 
-pub struct EVE<I: Interface> {
-    pub(crate) ll: low_level::LowLevel<I>,
+use models::Model;
+
+pub struct EVE<M: Model, I: Interface> {
+    pub(crate) ll: low_level::LowLevel<M, I>,
 }
 
-impl<I: Interface> EVE<I> {
+impl<M: Model, I: Interface> EVE<M, I> {
     pub fn new(ei: I) -> Self {
         Self {
             ll: low_level::LowLevel::new(ei),
@@ -58,11 +63,11 @@ impl<I: Interface> EVE<I> {
 
     /// Consumes the `EVE` object and returns an instance of `LowLevel`
     /// that uses the same interface.
-    pub fn take_low_level(self) -> low_level::LowLevel<I> {
+    pub fn take_low_level(self) -> low_level::LowLevel<M, I> {
         self.ll
     }
 
-    pub fn borrow_low_level<'a>(&'a mut self) -> &'a mut low_level::LowLevel<I> {
+    pub fn borrow_low_level<'a>(&'a mut self) -> &'a mut low_level::LowLevel<M, I> {
         &mut self.ll
     }
 
@@ -122,6 +127,7 @@ impl<I: Interface> EVE<I> {
         init::activate_pixel_clock(self, c)
     }
 
+    /*
     pub fn new_display_list<
         F: FnOnce(
             &mut display_list::JustEVEDisplayListBuilder<low_level::LowLevel<I>>,
@@ -138,6 +144,7 @@ impl<I: Interface> EVE<I> {
         self.ll
             .wr8(registers::EVERegister::DLSWAP.into(), 0b00000010)
     }
+    */
 
     /// Consumes the main EVE object and returns an interface to the
     /// coprocessor component of the chip, using the given waiter to pause
@@ -147,12 +154,12 @@ impl<I: Interface> EVE<I> {
     /// register writes and then do all of the main application activities
     /// via the coprocessor, which exposes all of the system's capabilities
     /// either directly or indirectly.
-    pub fn coprocessor<W: commands::EVECoprocessorWaiter<I>>(
+    pub fn coprocessor<W: commands::EVECoprocessorWaiter<M, I>>(
         self,
         waiter: W,
     ) -> Result<
-        commands::EVECoprocessor<I, W>,
-        commands::EVECoprocessorError<commands::EVECoprocessor<I, W>>,
+        commands::EVECoprocessor<M, I, W>,
+        commands::EVECoprocessorError<commands::EVECoprocessor<M, I, W>>,
     > {
         let ei = self.ll.take_interface();
         commands::EVECoprocessor::new(ei, waiter)
@@ -172,9 +179,9 @@ impl<I: Interface> EVE<I> {
     pub fn coprocessor_polling(
         self,
     ) -> Result<
-        commands::EVECoprocessor<I, impl commands::EVECoprocessorWaiter<I>>,
+        commands::EVECoprocessor<M, I, impl commands::EVECoprocessorWaiter<M, I>>,
         commands::EVECoprocessorError<
-            commands::EVECoprocessor<I, impl commands::EVECoprocessorWaiter<I>>,
+            commands::EVECoprocessor<M, I, impl commands::EVECoprocessorWaiter<M, I>>,
         >,
     > {
         let ei = self.ll.take_interface();

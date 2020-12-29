@@ -2,7 +2,7 @@
 
 use embedded_hal::blocking::spi::{Transfer, Write};
 use embedded_hal::digital::v2::OutputPin;
-use evegfx::interface::{EVEAddress, EVECommand, Interface};
+use evegfx::interface::{EVECommand, Interface};
 
 /// `EVEHALSPIInterface` is an implementation of `evegfx.Interface` that
 /// commincates over SPI using the `embedded-hal` SPI and GPIO (for
@@ -84,10 +84,10 @@ where
 {
     type Error = EVEHALSPIError<<SPI as Write<u8>>::Error, <SPI as Transfer<u8>>::Error, CS::Error>;
 
-    fn begin_write(&mut self, addr: EVEAddress) -> Result<(), Self::Error> {
+    fn begin_write(&mut self, addr: u32) -> Result<(), Self::Error> {
         self.spi_select()?;
         let mut addr_words: [u8; 3] = [0; 3];
-        addr.build_write_header(&mut addr_words);
+        self.build_write_header(addr, &mut addr_words);
         self.spi_write(&addr_words)
     }
 
@@ -99,10 +99,10 @@ where
         self.spi_unselect()
     }
 
-    fn begin_read(&mut self, addr: EVEAddress) -> Result<(), Self::Error> {
+    fn begin_read(&mut self, addr: u32) -> Result<(), Self::Error> {
         self.spi_select()?;
         let mut addr_words: [u8; 4] = [0; 4];
-        addr.build_read_header(&mut addr_words);
+        self.build_read_header(addr, &mut addr_words);
         self.spi_write(&addr_words)
     }
 

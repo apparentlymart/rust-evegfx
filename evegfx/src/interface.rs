@@ -9,11 +9,11 @@ use core::convert::TryFrom;
 /// make the library portable across systems big and small. Other crates,
 /// including some with the name prefix `evegfx`, take on additional
 /// dependencies in order to bind this library to specific systems/hardware.
-pub trait Interface {
+pub trait Interface: Sized {
     type Error;
 
-    fn begin_write(&mut self, addr: EVEAddress) -> Result<(), Self::Error>;
-    fn begin_read(&mut self, addr: EVEAddress) -> Result<(), Self::Error>;
+    fn begin_write(&mut self, addr: u32) -> Result<(), Self::Error>;
+    fn begin_read(&mut self, addr: u32) -> Result<(), Self::Error>;
     fn continue_write(&mut self, v: &[u8]) -> Result<(), Self::Error>;
     fn continue_read(&mut self, into: &mut [u8]) -> Result<(), Self::Error>;
     fn end_write(&mut self) -> Result<(), Self::Error>;
@@ -24,16 +24,37 @@ pub trait Interface {
         Ok(())
     }
 
-    fn write(&mut self, addr: EVEAddress, v: &[u8]) -> Result<(), Self::Error> {
+    fn write(&mut self, addr: u32, v: &[u8]) -> Result<(), Self::Error> {
         self.begin_write(addr)?;
         self.continue_write(v)?;
         self.end_write()
     }
 
-    fn read(&mut self, addr: EVEAddress, into: &mut [u8]) -> Result<(), Self::Error> {
+    fn read(&mut self, addr: u32, into: &mut [u8]) -> Result<(), Self::Error> {
         self.begin_read(addr)?;
         self.continue_read(into)?;
         self.end_read()
+    }
+
+    /// Write the three bytes needed to form a "write memory" header
+    /// for the address into the given bytes. This is a helper for
+    /// physical implementations that need to construct a message
+    /// buffer to transmit to the real chip, e.g. via SPI.
+    fn build_write_header(&self, addr: u32, into: &mut [u8; 3]) {
+        into[0] = (((addr >> 16) & 0b00111111) | 0b10000000) as u8;
+        into[1] = (addr >> 8) as u8;
+        into[2] = (addr >> 0) as u8;
+    }
+
+    /// Write the four bytes needed to form a "read memory" header
+    /// for the address into the given bytes. This is a helper for
+    /// physical implementations that need to construct a message
+    /// buffer to transmit to the real chip, e.g. via SPI.
+    fn build_read_header(&self, addr: u32, into: &mut [u8; 4]) {
+        into[0] = ((addr >> 16) & 0b00111111) as u8;
+        into[1] = (addr >> 8) as u8;
+        into[2] = (addr >> 0) as u8;
+        into[3] = 0; // "dummy byte", per the datasheet
     }
 }
 
@@ -385,7 +406,7 @@ impl From<EVECommand> for u8 {
 /// other data over the top of it.
 pub fn read_chip_id<I: Interface>(ei: &mut I) -> Result<[u8; 4], I::Error> {
     let mut into: [u8; 4] = [0; 4];
-    ei.read(EVEAddress::force_raw(0xC0000), &mut into)?;
+    ei.read(0xC0000, &mut into)?;
     Ok(into)
 }
 
@@ -395,19 +416,19 @@ pub fn read_chip_id<I: Interface>(ei: &mut I) -> Result<[u8; 4], I::Error> {
 pub mod testing {
     extern crate std;
 
-    use super::{EVEAddress, EVECommand, Interface};
+    use super::{EVECommand, Interface};
     use std::collections::HashMap;
     use std::vec::Vec;
 
     /// A test double for `trait Interface`, available only in test mode.
     pub struct MockInterface {
-        _write_addr: Option<EVEAddress>,
-        _read_addr: Option<EVEAddress>,
+        _write_addr: Option<u32>,
+        _read_addr: Option<u32>,
 
         // _mem is a sparse representation of the memory space which
         // remembers what was written into it and returns 0xff if asked
         // for an address that wasn't previously written.
-        _mem: HashMap<EVEAddress, u8>,
+        _mem: HashMap<u32, u8>,
 
         // if _fail is Some then the mock methods will call it and use the
         // result to decide whether to return an error.
@@ -420,12 +441,12 @@ pub mod testing {
 
     #[derive(Clone, Debug)]
     pub enum MockInterfaceCall {
-        BeginWrite(EVEAddress),
+        BeginWrite(u32),
         ContinueWrite(Vec<u8>),
-        EndWrite(EVEAddress),
-        BeginRead(EVEAddress),
+        EndWrite(u32),
+        BeginRead(u32),
         ContinueRead(usize),
-        EndRead(EVEAddress),
+        EndRead(u32),
         Cmd(EVECommand, u8, u8),
     }
 
@@ -451,9 +472,9 @@ pub mod testing {
         // Copies some data into the fake memory without considering it
         // to be a logged operation. This is intended for setting up
         // memory ready for subsequent calls to `read`.
-        pub fn setup_mem(&mut self, addr: EVEAddress, buf: &[u8]) {
+        pub fn setup_mem(&mut self, addr: u32, buf: &[u8]) {
             for (i, v) in buf.iter().enumerate() {
-                let e_addr = addr + (i as u32);
+                let e_addr = addr + i as u32;
                 let v = *v; // Take a copy of the value from the input
                 if v == Self::DEFAULT_MEM_VALUE {
                     self._mem.remove(&e_addr);
@@ -479,7 +500,7 @@ pub mod testing {
     impl Interface for MockInterface {
         type Error = MockError;
 
-        fn begin_write(&mut self, addr: EVEAddress) -> core::result::Result<(), Self::Error> {
+        fn begin_write(&mut self, addr: u32) -> core::result::Result<(), Self::Error> {
             let call = MockInterfaceCall::BeginWrite(addr);
             if self.call_should_fail(&call) {
                 self._calls.push(call);
@@ -516,7 +537,7 @@ pub mod testing {
             Ok(())
         }
 
-        fn begin_read(&mut self, addr: EVEAddress) -> core::result::Result<(), Self::Error> {
+        fn begin_read(&mut self, addr: u32) -> core::result::Result<(), Self::Error> {
             let call = MockInterfaceCall::BeginRead(addr);
             if self.call_should_fail(&call) {
                 self._calls.push(call);
