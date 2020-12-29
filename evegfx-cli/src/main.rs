@@ -101,7 +101,8 @@ fn main() {
 
     const TIMINGS: evegfx::graphics_mode::EVEGraphicsTimings = GAMEDUINO_HDMI_720P;
 
-    let mut eve = evegfx::BT815::new(eve_interface);
+    //let mut eve = evegfx::BT815::new(eve_interface);
+    let mut eve = EVE::new(evegfx::BT815, eve_interface);
     eve.start_system_clock(evegfx::EVEClockSource::Internal, TIMINGS)
         .unwrap();
     println!("Waiting for EVE boot...");

@@ -9,10 +9,12 @@ use crate::memory;
 /// this trait is intended only for implementation inside this crate and its
 /// requirements are subject to change in future, even in minor releases.
 ///
-/// This type is typically implemented on empty enum types to represent that
-/// models are a compile-time-only construct used to represent the minor
-/// differences between models through monomorphization, and they have no
-/// presence at runtime.
+/// This type is typically implemented on empty struct types so that the
+/// name can be used both as a type and as a value (the only value of the
+/// type). Models are relevant only at compile time to help generate the
+/// correct address offsets for the different memory maps in different
+/// generations of the EVE line. They should be removed altogether by the
+/// compiler so as to have no appreciable effect at runtime.
 pub trait Model: Sized {
     type MainMem: memory::MainMem;
     type DisplayListMem: memory::DisplayListMem;
@@ -24,7 +26,7 @@ pub trait Model: Sized {
     }
 
     fn new<I: crate::Interface>(ei: I) -> crate::EVE<Self, I> {
-        crate::EVE::new(ei)
+        crate::EVE::new_internal(ei)
     }
 
     fn reg_ptr(reg: crate::registers::EVERegister) -> crate::memory::Ptr<Self::RegisterMem> {

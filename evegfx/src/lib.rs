@@ -36,17 +36,45 @@ pub mod strfmt;
 pub use evegfx_macros::eve_format;
 pub use graphics_mode::{EVEGraphicsTimings, EVERGBElectricalMode};
 pub use init::EVEClockSource;
+
+/// An adapter trait binding our high-level API to the underlying hardware,
+/// such as to a platform-specific SPI peripheral.
+#[doc(inline)]
 pub use interface::Interface;
+
+/// Model type representing the BT815 and BT816 chips.
+#[doc(inline)]
 pub use models::bt815::BT815;
+
+/// An alias for [`BT815`](BT815), because both models belong to the same
+/// generation and thus share a common API.
+#[doc(inline)]
+pub type BT816 = BT815;
 
 use models::Model;
 
+/// The main type for this crate, providing a high-level API to an EVE chip
+/// in terms of a low-level, platform-specific interface.
 pub struct EVE<M: Model, I: Interface> {
     pub(crate) ll: low_level::LowLevel<M, I>,
 }
 
 impl<M: Model, I: Interface> EVE<M, I> {
-    pub fn new(ei: I) -> Self {
+    /// Construct a new `EVE` object for the given EVE model, communicating
+    /// via the given interface.
+    ///
+    /// Models are represented by empty struct types in this crate, such
+    /// as [`BT815`](BT815) for the BT815 and BT816 models. The different
+    /// models all have a broadly-compatible API but later generations have
+    /// additional functionality.
+    #[allow(unused_variables)]
+    pub fn new(m: M, ei: I) -> Self {
+        Self::new_internal(ei)
+    }
+
+    // This is an internal version of `new` for situations where type inference
+    // already implies a particular model type.
+    pub(crate) fn new_internal(ei: I) -> Self {
         Self {
             ll: low_level::LowLevel::new(ei),
         }
@@ -61,7 +89,7 @@ impl<M: Model, I: Interface> EVE<M, I> {
         self.ll.borrow_interface()
     }
 
-    /// Consumes the `EVE` object and returns an instance of `LowLevel`
+    /// Consume the `EVE` object and returns an instance of `LowLevel`
     /// that uses the same interface.
     pub fn take_low_level(self) -> low_level::LowLevel<M, I> {
         self.ll

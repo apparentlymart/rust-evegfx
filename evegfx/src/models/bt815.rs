@@ -5,14 +5,15 @@ use crate::Interface;
 
 /// Device type representing the BT815 and BT816 models.
 ///
-/// This type is used only at compile time as a type parameter.
-pub enum BT815 {}
+/// This type is used only at compile time as a type parameter, or as an
+/// empty (compile-time-only) argument in order to influence selection of
+/// a type parameter on a function call that wouldn't naturally imply one.
+///
+/// To use the main [`EVE`](crate::EVE) API with this model, pass the model
+/// to [`EVE::new`](crate::EVE::new) along with a suitable
+/// [`Interface`](crate::Interface) for your underlying platform.
 
-impl BT815 {
-    pub fn low_level<I: Interface>(ei: I) -> LowLevel<Self, I> {
-        LowLevel::new(ei)
-    }
-}
+pub struct BT815;
 
 impl Model for BT815 {
     type MainMem = MainMem;
