@@ -311,6 +311,14 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF01))
     }
 
+    pub fn draw_text(
+        &mut self,
+        _msg: crate::strfmt::Message<M::MainMem>,
+        // TODO: other options too
+    ) -> Result<(), EVECoprocessorError<Self>> {
+        todo!();
+    }
+
     pub fn append_display_list(
         &mut self,
         cmd: crate::display_list::DLCmd,

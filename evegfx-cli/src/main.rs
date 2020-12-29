@@ -39,8 +39,11 @@ const GAMEDUINO_HDMI_720P: evegfx::graphics_mode::EVEGraphicsTimings =
 fn main() {
     println!("Hello, world!");
 
-    //let msg = evegfx::eve_format!("hello %d %x %c", 4, 6, 'd');
-    //println!("message is {:?}", msg);
+    let ptr: evegfx::memory::Ptr<<evegfx::BT815 as Model>::MainMem> = evegfx::memory::Ptr::new(2);
+    println!(
+        "message is {:?}",
+        evegfx::eve_format!("hello %s %d %x %c", ptr, 4, 6, 'd')
+    );
 
     let serial = Serial::new(
         Path::new("/dev/ttyUSB0"),
@@ -160,6 +163,7 @@ fn main() {
     must(cp.new_display_list(|cp| {
         cp.clear_color_rgb(evegfx::color::EVEColorRGB { r: 0, g: 0, b: 127 })?;
         cp.clear_all()?;
+        cp.draw_text(evegfx::eve_format!("hello %s", evegfx::memory::Ptr::new(2)));
         cp.display()
     }));
 

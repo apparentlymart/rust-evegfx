@@ -25,7 +25,7 @@ impl<R: MemoryRegion> Ptr<R> {
     /// memory region, modulo the region length. See
     /// [`MemoryRegion::ptr`](MemoryRegion::ptr) for more information.
     #[inline]
-    pub fn new(self, offset: u32) -> Self {
+    pub fn new(offset: u32) -> Self {
         R::ptr(offset)
     }
 

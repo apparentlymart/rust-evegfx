@@ -26,6 +26,8 @@ pub fn eve_format(input: TokenStream) -> TokenStream {
     let int_variant_path: ExprPath = syn::parse_str("::evegfx::strfmt::Argument::Int").unwrap();
     let uint_variant_path: ExprPath = syn::parse_str("::evegfx::strfmt::Argument::UInt").unwrap();
     let char_variant_path: ExprPath = syn::parse_str("::evegfx::strfmt::Argument::Char").unwrap();
+    let string_variant_path: ExprPath =
+        syn::parse_str("::evegfx::strfmt::Argument::String").unwrap();
 
     let mut remain = fmt_src.clone();
     let mut next_arg = 0;
@@ -69,6 +71,10 @@ pub fn eve_format(input: TokenStream) -> TokenStream {
                     }
                     b'c' => {
                         let arg_expr = enum_variant_expr(char_variant_path.clone(), given_expr);
+                        arg_elems.push(arg_expr);
+                    }
+                    b's' => {
+                        let arg_expr = enum_variant_expr(string_variant_path.clone(), given_expr);
                         arg_elems.push(arg_expr);
                     }
                     // TODO: string pointers (%s) too
