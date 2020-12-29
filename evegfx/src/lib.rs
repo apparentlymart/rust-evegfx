@@ -151,16 +151,14 @@ impl<M: Model, I: Interface> EVE<M, I> {
     }
 
     pub fn new_display_list<
-        F: FnOnce(
-            &mut display_list::JustEVEDisplayListBuilder<low_level::LowLevel<M, I>>,
-        ) -> Result<(), I::Error>,
+        F: FnOnce(&mut display_list::JustBuilder<low_level::LowLevel<M, I>>) -> Result<(), I::Error>,
     >(
         &mut self,
         f: F,
     ) -> Result<(), I::Error> {
         self.ll.dl_reset();
         {
-            let mut builder = display_list::JustEVEDisplayListBuilder::new(&mut self.ll);
+            let mut builder = display_list::just_builder(&mut self.ll);
             f(&mut builder)?;
         }
         let dlswap_ptr = M::reg_ptr(registers::EVERegister::DLSWAP);

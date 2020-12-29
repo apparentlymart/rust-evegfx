@@ -165,7 +165,7 @@ impl DLCmd {
 ///
 /// Implementers usually implement only `append_raw_command`, and take the
 /// default implementations of all of the other methods.
-pub trait EVEDisplayListBuilder {
+pub trait Builder {
     type Error;
 
     fn append_raw_command(&mut self, raw: u32) -> Result<(), Self::Error>;
@@ -217,26 +217,30 @@ pub trait EVEDisplayListBuilder {
     }
 }
 
-/// An implementation of `EVEDisplayListBuilder` that _only_ has the display
+/// An implementation of `Builder` that _only_ has the display
 /// list building functionality, wrapping another object that implements the
 /// trait, for situations where it would be inappropriate to use other
 /// functionality of the wrapped object while building a display list.
-pub struct JustEVEDisplayListBuilder<'a, W: EVEDisplayListBuilder> {
+pub struct JustBuilder<'a, W: Builder> {
     w: &'a mut W,
 }
 
-impl<'a, W: EVEDisplayListBuilder> JustEVEDisplayListBuilder<'a, W> {
-    pub fn new(w: &'a mut W) -> Self {
+impl<'a, W: Builder> JustBuilder<'a, W> {
+    fn new(w: &'a mut W) -> Self {
         Self { w: w }
     }
 }
 
-impl<'a, W: EVEDisplayListBuilder> EVEDisplayListBuilder for JustEVEDisplayListBuilder<'a, W> {
+impl<'a, W: Builder> Builder for JustBuilder<'a, W> {
     type Error = W::Error;
 
     fn append_raw_command(&mut self, raw: u32) -> core::result::Result<(), W::Error> {
         self.w.append_raw_command(raw)
     }
+}
+
+pub fn just_builder<'a, W: Builder>(wrapped: &'a mut W) -> JustBuilder<'a, W> {
+    JustBuilder::new(wrapped)
 }
 
 /// Each command is encoded as a four-byte value. Converting to `u32` returns

@@ -376,7 +376,7 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
 // type checker, not relevant at runtime.
 struct StoppedStream;
 
-impl<M, I, W> crate::display_list::EVEDisplayListBuilder for EVECoprocessor<M, I, W>
+impl<M, I, W> crate::display_list::Builder for EVECoprocessor<M, I, W>
 where
     M: Model,
     I: Interface,
@@ -457,7 +457,6 @@ mod tests {
     extern crate std;
 
     use super::*;
-    use crate::interface::EVECommand;
     use crate::memory::MemoryRegion;
     use crate::models::testing::Exhaustive;
     use std::vec;
@@ -540,7 +539,7 @@ mod tests {
         unwrap_copro(cp.new_display_list(|cp| {
             // We must import this trait in order to call the display list building
             // methods on the coprocessor object.
-            use crate::display_list::EVEDisplayListBuilder;
+            use crate::display_list::Builder;
 
             cp.append_raw_word(0xdeadbeef)?;
             cp.clear_color_alpha(127)
@@ -769,9 +768,9 @@ mod tests {
             result
         }
 
-        fn cmd(
+        fn host_cmd(
             &mut self,
-            _cmd: EVECommand,
+            _cmd: u8,
             _a0: u8,
             _a1: u8,
         ) -> core::result::Result<(), Self::Error> {

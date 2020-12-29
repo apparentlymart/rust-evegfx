@@ -1,5 +1,3 @@
-use crate::interface::{EVEAddress, EVEAddressRegion};
-
 /// Represents a register within the MEM_REG region on an EVE device.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u16)]
@@ -35,35 +33,20 @@ pub enum EVERegister {
 }
 
 impl EVERegister {
-    pub const fn address(self) -> EVEAddress {
-        EVEAddressRegion::RAM_REG.offset(self as u32)
-    }
-
     pub fn ptr<M: crate::models::Model>(self) -> crate::memory::Ptr<M::RegisterMem> {
         use crate::memory::MemoryRegion;
         M::RegisterMem::ptr(self as u32)
     }
 }
 
-impl core::convert::From<EVERegister> for EVEAddress {
-    fn from(reg: EVERegister) -> Self {
-        reg.address()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::testing::Exhaustive;
 
     #[test]
-    fn test_to_address() {
-        assert_eq!(
-            EVERegister::VSYNC1.address(),
-            EVEAddress::force_raw(0x302050)
-        );
-        assert_eq!(
-            EVEAddress::from(EVERegister::VSYNC1),
-            EVEAddress::force_raw(0x302050)
-        );
+    fn test_ptr() {
+        assert_eq!(EVERegister::VSYNC1.ptr::<Exhaustive>().to_raw(), 0x302050);
+        assert_eq!(EVERegister::VSYNC1.ptr::<Exhaustive>().to_raw(), 0x302050);
     }
 }

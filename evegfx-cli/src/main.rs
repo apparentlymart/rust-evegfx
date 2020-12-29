@@ -6,8 +6,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-use evegfx::display_list::EVEDisplayListBuilder;
-use evegfx::interface::{EVEAddress, EVECommand};
+use evegfx::display_list::Builder;
 use evegfx::memory::MemoryRegion;
 use evegfx::models::Model;
 use evegfx::{Interface, EVE};
@@ -339,18 +338,18 @@ impl<W: Interface> Interface for LogInterface<W> {
         Self::handle(self.w.end_read(), self.fake_delay)
     }
 
-    fn cmd(&mut self, cmd: EVECommand, a0: u8, a1: u8) -> std::result::Result<(), Self::Error> {
-        match evegfx::host_commands::EVEHostCmd::from_interface(cmd) {
+    fn host_cmd(&mut self, cmd: u8, a0: u8, a1: u8) -> std::result::Result<(), Self::Error> {
+        match evegfx::host_commands::EVEHostCmd::from_raw(cmd) {
             Some(cmd) => println!(
                 "- cmd(/*{:#04x?}*/ {:?}.into(), {:#04x}, {:#04x})",
-                cmd.for_interface().raw(),
+                cmd.to_raw(),
                 cmd,
                 a0,
                 a1
             ),
             None => println!("- cmd({:?}, {:#04x}, {:#04x})", cmd, a0, a1),
         }
-        Self::handle(self.w.cmd(cmd, a0, a1), self.fake_delay)
+        Self::handle(self.w.host_cmd(cmd, a0, a1), self.fake_delay)
     }
 }
 

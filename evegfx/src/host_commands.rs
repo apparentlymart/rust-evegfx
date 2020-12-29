@@ -16,19 +16,9 @@ pub enum EVEHostCmd {
 }
 
 impl EVEHostCmd {
-    /// Returns the representation of the command expected by the low level
-    /// interface API.
-    ///
-    /// The low-level API accepts any command value that matches the expected
-    /// bitmask for commands, regardless of whether it's a specific command
-    /// value defined in a datasheet.
-    pub const fn for_interface(self) -> crate::interface::EVECommand {
-        crate::interface::EVECommand::force_raw(self as u8)
-    }
-
-    pub const fn from_interface(cmd: crate::interface::EVECommand) -> Option<Self> {
+    pub const fn from_raw(raw: u8) -> Option<Self> {
         use EVEHostCmd::*;
-        match cmd.raw() {
+        match raw {
             0x00 => Some(ACTIVE),
             0x41 => Some(STANDBY),
             0x42 => Some(SLEEP),
@@ -42,21 +32,8 @@ impl EVEHostCmd {
             _ => None, // Unknown command
         }
     }
-}
 
-impl core::convert::From<EVEHostCmd> for crate::interface::EVECommand {
-    fn from(cmd: EVEHostCmd) -> Self {
-        cmd.for_interface()
-    }
-}
-
-impl core::convert::TryFrom<crate::interface::EVECommand> for EVEHostCmd {
-    type Error = ();
-
-    fn try_from(cmd: crate::interface::EVECommand) -> Result<Self, Self::Error> {
-        match Self::from_interface(cmd) {
-            Some(v) => Ok(v),
-            None => Err(()),
-        }
+    pub const fn to_raw(self) -> u8 {
+        self as u8
     }
 }

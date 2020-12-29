@@ -104,7 +104,7 @@ impl<M: Model, I: Interface> LowLevel<M, I> {
     }
 
     pub fn host_command(&mut self, cmd: EVEHostCmd, a0: u8, a1: u8) -> Result<(), I::Error> {
-        self.raw.cmd(cmd.for_interface(), a0, a1)
+        self.raw.host_cmd(cmd.to_raw(), a0, a1)
     }
 
     pub fn dl_reset(&mut self) {
@@ -131,7 +131,7 @@ impl<M: Model, I: Interface> LowLevel<M, I> {
     }
 }
 
-impl<M: Model, I: Interface> crate::display_list::EVEDisplayListBuilder for LowLevel<M, I> {
+impl<M: Model, I: Interface> crate::display_list::Builder for LowLevel<M, I> {
     type Error = I::Error;
 
     fn append_raw_command(&mut self, raw: u32) -> core::result::Result<(), I::Error> {
@@ -149,7 +149,6 @@ mod tests {
 
     use super::*;
     use crate::interface::testing::{MockInterface, MockInterfaceCall};
-    use crate::interface::EVECommand;
     use crate::models::testing::Exhaustive;
     use std::vec;
 
@@ -303,11 +302,7 @@ mod tests {
         eve.host_command(EVEHostCmd::ACTIVE, 0x23, 0x45).unwrap();
 
         let got_calls = eve.take_interface().calls();
-        let want_calls = vec![MockInterfaceCall::Cmd(
-            EVECommand::force_raw(0x00),
-            0x23,
-            0x45,
-        )];
+        let want_calls = vec![MockInterfaceCall::Cmd(0x00, 0x23, 0x45)];
         assert_eq!(&got_calls[..], &want_calls[..]);
     }
 

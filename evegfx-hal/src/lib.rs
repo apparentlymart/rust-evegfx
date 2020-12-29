@@ -2,7 +2,7 @@
 
 use embedded_hal::blocking::spi::{Transfer, Write};
 use embedded_hal::digital::v2::OutputPin;
-use evegfx::interface::{EVECommand, Interface};
+use evegfx::interface::Interface;
 
 /// `EVEHALSPIInterface` is an implementation of `evegfx.Interface` that
 /// commincates over SPI using the `embedded-hal` SPI and GPIO (for
@@ -115,12 +115,10 @@ where
         self.spi_unselect()
     }
 
-    fn cmd(&mut self, cmd: EVECommand, a0: u8, a1: u8) -> Result<(), Self::Error> {
-        self.with_cs(|ei| {
-            let mut cmd_words: [u8; 3] = [0; 3];
-            cmd.build_message(a0, a1, &mut cmd_words);
-            ei.spi_write(&cmd_words)
-        })
+    fn host_cmd(&mut self, cmd: u8, a0: u8, a1: u8) -> Result<(), Self::Error> {
+        let mut cmd_words: [u8; 3] = [0; 3];
+        self.build_host_cmd_msg(cmd, a0, a1, &mut cmd_words);
+        self.with_cs(|ei| ei.spi_write(&cmd_words))
     }
 }
 

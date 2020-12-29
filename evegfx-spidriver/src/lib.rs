@@ -1,7 +1,7 @@
 #![no_std]
 
 use embedded_hal::serial::{Read, Write};
-use evegfx::interface::{EVECommand, Interface};
+use evegfx::interface::Interface;
 use spidriver::SPIDriver;
 
 pub struct EVESPIDriverInterface<TX, RX>
@@ -19,16 +19,6 @@ where
 {
     pub fn new(sd: SPIDriver<TX, RX>) -> Self {
         Self { sd: sd }
-    }
-
-    fn with_cs<F, R>(&mut self, func: F) -> Result<R, <Self as Interface>::Error>
-    where
-        F: FnOnce(&mut Self) -> Result<R, <Self as Interface>::Error>,
-    {
-        self.sd.select()?;
-        let result = func(self);
-        self.sd.unselect()?;
-        result
     }
 }
 
@@ -75,11 +65,11 @@ where
         self.sd.unselect()
     }
 
-    fn cmd(&mut self, cmd: EVECommand, a0: u8, a1: u8) -> Result<(), Self::Error> {
-        self.with_cs(|ei| {
-            let mut cmd_words: [u8; 3] = [0; 3];
-            cmd.build_message(a0, a1, &mut cmd_words);
-            ei.sd.write(&cmd_words)
-        })
+    fn host_cmd(&mut self, cmd: u8, a0: u8, a1: u8) -> Result<(), Self::Error> {
+        let mut cmd_words: [u8; 3] = [0; 3];
+        self.build_host_cmd_msg(cmd, a0, a1, &mut cmd_words);
+        self.sd.select()?;
+        self.sd.write(&cmd_words)?;
+        self.sd.unselect()
     }
 }
