@@ -26,6 +26,8 @@ pub struct LowLevel<M: Model, I: Interface> {
 }
 
 impl<M: Model, I: Interface> LowLevel<M, I> {
+    const END_ADDR: u32 = M::DisplayListMem::BASE_ADDR + M::DisplayListMem::LENGTH;
+
     pub fn new(interface: I) -> Self {
         LowLevel {
             raw: interface,
@@ -105,31 +107,30 @@ impl<M: Model, I: Interface> LowLevel<M, I> {
         self.raw.cmd(cmd.for_interface(), a0, a1)
     }
 
-    /*
     pub fn dl_reset(&mut self) {
-        self.next_dl = EVEAddressRegion::RAM_DL.base;
+        self.next_dl = M::DisplayListMem::ptr(0);
     }
 
     pub fn dl(&mut self, cmd: DLCmd) -> Result<(), I::Error> {
         self.wr32(self.next_dl, cmd.into())?;
-        self.next_dl += DLCmd::LENGTH; // ready for the next entry
-        if !EVEAddressRegion::RAM_DL.contains(self.next_dl) {
-            // If the next write would be out of range then we'll undo
-            // our increment and let the next write just overwrite the
-            // final entry in the display list. This means that a well-behaved
-            // program which finishes its display list with the Display
-            // command will still end up with that command at its end, even
-            // though some of the commands were lost due to running out of
-            // display list memory.
-            self.next_dl =
-                EVEAddressRegion::RAM_DL + (EVEAddressRegion::RAM_DL.length - DLCmd::LENGTH);
+
+        let mut next_addr = self.next_dl.to_raw() + DLCmd::LENGTH;
+        // If the next write would be out of range then we'll undo
+        // our increment and let the next write just overwrite the
+        // final entry in the display list. This means that a well-behaved
+        // program which finishes its display list with the Display
+        // command will still end up with that command at its end, even
+        // though some of the commands were lost due to running out of
+        // display list memory.
+        if next_addr >= Self::END_ADDR {
+            next_addr = Self::END_ADDR - DLCmd::LENGTH;
         }
+
+        self.next_dl = M::DisplayListMem::ptr(next_addr);
         Ok(())
     }
-    */
 }
 
-/*
 impl<M: Model, I: Interface> crate::display_list::EVEDisplayListBuilder for LowLevel<M, I> {
     type Error = I::Error;
 
@@ -141,7 +142,6 @@ impl<M: Model, I: Interface> crate::display_list::EVEDisplayListBuilder for LowL
         self.dl(cmd)
     }
 }
-*/
 
 #[cfg(test)]
 mod tests {
@@ -311,7 +311,6 @@ mod tests {
         assert_eq!(&got_calls[..], &want_calls[..]);
     }
 
-    /*
     #[test]
     fn test_dl() {
         let mut eve = test_obj(|_| {});
@@ -329,19 +328,20 @@ mod tests {
         ))
         .unwrap();
 
+        let base = <Exhaustive as Model>::DisplayListMem::BASE_ADDR;
+
         let got_calls = eve.take_interface().calls();
         let want_calls = vec![
-            MockInterfaceCall::BeginWrite(EVEAddressRegion::RAM_DL + 0),
+            MockInterfaceCall::BeginWrite(base + 0),
             MockInterfaceCall::ContinueWrite(vec![2, 0, 0, 31 as u8]),
-            MockInterfaceCall::EndWrite(EVEAddressRegion::RAM_DL + 0),
-            MockInterfaceCall::BeginWrite(EVEAddressRegion::RAM_DL + 4),
+            MockInterfaceCall::EndWrite(base + 0),
+            MockInterfaceCall::BeginWrite(base + 4),
             MockInterfaceCall::ContinueWrite(vec![3, 0, 0, 9 as u8]),
-            MockInterfaceCall::EndWrite(EVEAddressRegion::RAM_DL + 4),
-            MockInterfaceCall::BeginWrite(EVEAddressRegion::RAM_DL + 0),
+            MockInterfaceCall::EndWrite(base + 4),
+            MockInterfaceCall::BeginWrite(base + 0),
             MockInterfaceCall::ContinueWrite(vec![1, 0, 0, 31 as u8]),
-            MockInterfaceCall::EndWrite(EVEAddressRegion::RAM_DL + 0),
+            MockInterfaceCall::EndWrite(base + 0),
         ];
         assert_eq!(&got_calls[..], &want_calls[..]);
     }
-    */
 }

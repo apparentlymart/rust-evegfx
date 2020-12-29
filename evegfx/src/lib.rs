@@ -150,10 +150,9 @@ impl<M: Model, I: Interface> EVE<M, I> {
         init::activate_pixel_clock(self, c)
     }
 
-    /*
     pub fn new_display_list<
         F: FnOnce(
-            &mut display_list::JustEVEDisplayListBuilder<low_level::LowLevel<I>>,
+            &mut display_list::JustEVEDisplayListBuilder<low_level::LowLevel<M, I>>,
         ) -> Result<(), I::Error>,
     >(
         &mut self,
@@ -164,10 +163,9 @@ impl<M: Model, I: Interface> EVE<M, I> {
             let mut builder = display_list::JustEVEDisplayListBuilder::new(&mut self.ll);
             f(&mut builder)?;
         }
-        self.ll
-            .wr8(registers::EVERegister::DLSWAP.into(), 0b00000010)
+        let dlswap_ptr = M::reg_ptr(registers::EVERegister::DLSWAP);
+        self.ll.wr8(dlswap_ptr, 0b00000010)
     }
-    */
 
     /// Consumes the main EVE object and returns an interface to the
     /// coprocessor component of the chip, using the given waiter to pause

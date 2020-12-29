@@ -163,7 +163,7 @@ fn main() {
     must(cp.new_display_list(|cp| {
         cp.clear_color_rgb(evegfx::color::EVEColorRGB { r: 0, g: 0, b: 127 })?;
         cp.clear_all()?;
-        cp.draw_text(evegfx::eve_format!("hello %s", evegfx::memory::Ptr::new(2)));
+        cp.draw_text(evegfx::eve_format!("hello %s", evegfx::memory::Ptr::new(2)))?;
         cp.display()
     }));
 

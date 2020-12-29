@@ -75,11 +75,51 @@ impl<R: MemoryRegion> core::ops::Add<i32> for Ptr<R> {
     }
 }
 
+impl<R: MemoryRegion> core::ops::Add<u32> for Ptr<R> {
+    type Output = Self;
+
+    fn add(self, offset: u32) -> Self {
+        R::ptr(self.to_raw() + offset)
+    }
+}
+
+impl<R: MemoryRegion> core::ops::AddAssign<i32> for Ptr<R> {
+    fn add_assign(&mut self, offset: i32) {
+        *self = R::ptr(self.to_raw() + (offset as u32))
+    }
+}
+
+impl<R: MemoryRegion> core::ops::AddAssign<u32> for Ptr<R> {
+    fn add_assign(&mut self, offset: u32) {
+        *self = R::ptr(self.to_raw() + offset)
+    }
+}
+
 impl<R: MemoryRegion> core::ops::Sub<i32> for Ptr<R> {
     type Output = Self;
 
     fn sub(self, offset: i32) -> Self {
         R::ptr(self.to_raw() - (offset as u32))
+    }
+}
+
+impl<R: MemoryRegion> core::ops::Sub<u32> for Ptr<R> {
+    type Output = Self;
+
+    fn sub(self, offset: u32) -> Self {
+        R::ptr(self.to_raw() - offset)
+    }
+}
+
+impl<R: MemoryRegion> core::ops::SubAssign<i32> for Ptr<R> {
+    fn sub_assign(&mut self, offset: i32) {
+        *self = R::ptr(self.to_raw() - (offset as u32))
+    }
+}
+
+impl<R: MemoryRegion> core::ops::SubAssign<u32> for Ptr<R> {
+    fn sub_assign(&mut self, offset: u32) {
+        *self = R::ptr(self.to_raw() - offset)
     }
 }
 
@@ -111,7 +151,7 @@ impl<R: MemoryRegion> core::fmt::Display for Ptr<R> {
 /// Memory regions exist only at compile time, as a facility to have the
 /// Rust type system help ensure valid use of pointers. At runtime we
 /// deal only in absolute addresses represented as u32.
-pub trait MemoryRegion: core::marker::Sized + core::fmt::Debug {
+pub trait MemoryRegion: core::marker::Sized + core::fmt::Debug + core::marker::Copy {
     type Model: Model;
 
     const BASE_ADDR: u32;

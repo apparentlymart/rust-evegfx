@@ -95,7 +95,7 @@ impl<'a, 'b, R: MainMem> Message<'a, 'b, R> {
 /// NoModel is a stand-in model for messages that don't refer to main memory
 /// at all, and thus aren't constrained to any particular model.
 #[doc(hidden)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct NoModel;
 
 impl crate::models::Model for NoModel {
@@ -108,7 +108,7 @@ impl crate::models::Model for NoModel {
 /// NoMem is a stand-in memory region for messages that don't refer to
 /// main memory at all.
 #[doc(hidden)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum NoMem {}
 
 impl crate::memory::MemoryRegion for NoMem {
