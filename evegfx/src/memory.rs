@@ -1,3 +1,4 @@
+use crate::models::Model;
 use core::marker::PhantomData;
 
 /// A pointer to a memory address within a particular memory region identified
@@ -111,6 +112,8 @@ impl<R: MemoryRegion> core::fmt::Display for Ptr<R> {
 /// Rust type system help ensure valid use of pointers. At runtime we
 /// deal only in absolute addresses represented as u32.
 pub trait MemoryRegion: core::marker::Sized + core::fmt::Debug {
+    type Model: Model;
+
     const BASE_ADDR: u32;
     const LENGTH: u32;
     const DEBUG_NAME: &'static str;

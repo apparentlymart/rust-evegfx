@@ -12,7 +12,7 @@ use crate::memory::MainMem;
 /// although in that case it behaves just as a thin wrapper around a slice
 /// of bytes.
 #[derive(Clone, Copy)]
-pub struct Message<'a, 'b, R: MainMem = NoMainMem> {
+pub struct Message<'a, 'b, R: MainMem = NoMem> {
     pub(crate) fmt: &'a [u8],
     pub(crate) args: Option<&'b [Argument<R>]>,
 }
@@ -92,18 +92,36 @@ impl<'a, 'b, R: MainMem> Message<'a, 'b, R> {
     }
 }
 
-/// NoMainMem is a stand-in memory region for messages that don't refer to
-/// main memory at all.
+/// NoModel is a stand-in model for messages that don't refer to main memory
+/// at all, and thus aren't constrained to any particular model.
+#[doc(hidden)]
 #[derive(Debug)]
-pub enum NoMainMem {}
+pub struct NoModel;
 
-impl crate::memory::MemoryRegion for NoMainMem {
+impl crate::models::Model for NoModel {
+    type MainMem = NoMem;
+    type DisplayListMem = NoMem;
+    type RegisterMem = NoMem;
+    type CommandMem = NoMem;
+}
+
+/// NoMem is a stand-in memory region for messages that don't refer to
+/// main memory at all.
+#[doc(hidden)]
+#[derive(Debug)]
+pub enum NoMem {}
+
+impl crate::memory::MemoryRegion for NoMem {
+    type Model = NoModel;
     const BASE_ADDR: u32 = 0;
     const LENGTH: u32 = 0;
-    const DEBUG_NAME: &'static str = "NoMainMem";
+    const DEBUG_NAME: &'static str = "NoMem";
 }
-impl crate::memory::HostAccessible for NoMainMem {}
-impl crate::memory::MainMem for NoMainMem {}
+impl crate::memory::HostAccessible for NoMem {}
+impl crate::memory::MainMem for NoMem {}
+impl crate::memory::DisplayListMem for NoMem {}
+impl crate::memory::RegisterMem for NoMem {}
+impl crate::memory::CommandMem for NoMem {}
 
 #[cfg(test)]
 mod tests {

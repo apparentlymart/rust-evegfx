@@ -60,6 +60,7 @@ pub(crate) mod testing {
     #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub(crate) enum MainMem {}
     impl memory::MemoryRegion for MainMem {
+        type Model = Exhaustive;
         const BASE_ADDR: u32 = 0x000000;
         const LENGTH: u32 = 1024 * 1024;
         const DEBUG_NAME: &'static str = "MainMem";
@@ -70,6 +71,7 @@ pub(crate) mod testing {
     #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub(crate) enum DisplayListMem {}
     impl memory::MemoryRegion for DisplayListMem {
+        type Model = Exhaustive;
         const BASE_ADDR: u32 = 0x300000;
         const LENGTH: u32 = 8 * 1024;
         const DEBUG_NAME: &'static str = "DisplayListMem";
@@ -80,6 +82,7 @@ pub(crate) mod testing {
     #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub(crate) enum RegisterMem {}
     impl memory::MemoryRegion for RegisterMem {
+        type Model = Exhaustive;
         const BASE_ADDR: u32 = 0x302000;
         const LENGTH: u32 = 4 * 1024;
         const DEBUG_NAME: &'static str = "RegisterMem";
@@ -90,6 +93,7 @@ pub(crate) mod testing {
     #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub(crate) enum CommandMem {}
     impl memory::MemoryRegion for CommandMem {
+        type Model = Exhaustive;
         const BASE_ADDR: u32 = 0x308000;
         const LENGTH: u32 = 4 * 1024;
         const DEBUG_NAME: &'static str = "CommandMem";
@@ -100,6 +104,7 @@ pub(crate) mod testing {
     #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub(crate) enum ExtFlashMem {}
     impl memory::MemoryRegion for ExtFlashMem {
+        type Model = Exhaustive;
         const BASE_ADDR: u32 = 0x800000;
         const LENGTH: u32 = 256 * 1024 * 1024;
         const DEBUG_NAME: &'static str = "ExtFlashMem";

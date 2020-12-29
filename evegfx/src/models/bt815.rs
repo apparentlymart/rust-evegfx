@@ -28,6 +28,7 @@ impl WithExtFlashMem for BT815 {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MainMem {}
 impl memory::MemoryRegion for MainMem {
+    type Model = BT815;
     const BASE_ADDR: u32 = 0x000000;
     const LENGTH: u32 = 1024 * 1024;
     const DEBUG_NAME: &'static str = "MainMem";
@@ -38,6 +39,7 @@ impl memory::MainMem for MainMem {}
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum DisplayListMem {}
 impl memory::MemoryRegion for DisplayListMem {
+    type Model = BT815;
     const BASE_ADDR: u32 = 0x300000;
     const LENGTH: u32 = 8 * 1024;
     const DEBUG_NAME: &'static str = "DisplayListMem";
@@ -48,6 +50,7 @@ impl memory::DisplayListMem for DisplayListMem {}
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum RegisterMem {}
 impl memory::MemoryRegion for RegisterMem {
+    type Model = BT815;
     const BASE_ADDR: u32 = 0x302000;
     const LENGTH: u32 = 4 * 1024;
     const DEBUG_NAME: &'static str = "RegisterMem";
@@ -58,6 +61,7 @@ impl memory::RegisterMem for RegisterMem {}
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CommandMem {}
 impl memory::MemoryRegion for CommandMem {
+    type Model = BT815;
     const BASE_ADDR: u32 = 0x308000;
     const LENGTH: u32 = 4 * 1024;
     const DEBUG_NAME: &'static str = "CommandMem";
@@ -68,6 +72,7 @@ impl memory::CommandMem for CommandMem {}
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ExtFlashMem {}
 impl memory::MemoryRegion for ExtFlashMem {
+    type Model = BT815;
     const BASE_ADDR: u32 = 0x800000;
     const LENGTH: u32 = 256 * 1024 * 1024;
     const DEBUG_NAME: &'static str = "ExtFlashMem";
