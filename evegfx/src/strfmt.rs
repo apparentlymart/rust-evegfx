@@ -1,3 +1,5 @@
+use crate::memory::MainMem;
+
 /// A text message that might contain formatting sequences that correspond with
 /// given arguments.
 ///
@@ -6,21 +8,16 @@
 /// formatting syntax just enough to automatically infer the argument types
 /// and verify that the arguments are compatible with the format string.
 ///
-/// ```rust
-/// let val = 5;
-/// println!("Message is {:?}", evegfx::eve_format!("The current value is %d", val));
-/// ```
-///
 /// `Message` can also represent messages that won't be formatted at all,
 /// although in that case it behaves just as a thin wrapper around a slice
 /// of bytes.
 #[derive(Clone, Copy)]
-pub struct Message<'a, 'b> {
+pub struct Message<'a, 'b, R: MainMem = NoMainMem> {
     pub(crate) fmt: &'a [u8],
-    pub(crate) args: Option<&'b [Argument]>,
+    pub(crate) args: Option<&'b [Argument<R>]>,
 }
 
-impl<'a, 'b> core::fmt::Debug for Message<'a, 'b> {
+impl<'a, 'b, R: MainMem> core::fmt::Debug for Message<'a, 'b, R> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::result::Result<(), core::fmt::Error> {
         use core::fmt::Write;
         write!(f, "Message {{ fmt: b\"")?;
@@ -36,14 +33,14 @@ impl<'a, 'b> core::fmt::Debug for Message<'a, 'b> {
 
 /// An argument used as part of a `Message`.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum Argument {
+pub enum Argument<R: MainMem> {
     Int(i32),
     UInt(u32),
     Char(char),
-    // TODO: Also string pointer into RAM_G
+    String(crate::memory::Ptr<R>),
 }
 
-impl<'a, 'b> Message<'a, 'b> {
+impl<'a, 'b, R: MainMem> Message<'a, 'b, R> {
     /// Construct a message with formatting arguments.
     ///
     /// This function doesn't verify that the format string is compatible with
@@ -57,7 +54,7 @@ impl<'a, 'b> Message<'a, 'b> {
     /// to some of the [`EVECoprocessor`](crate::commands::EVECoprocessor)
     /// methods, to copy the data into the coprocessor ring buffer.
     #[inline]
-    pub const fn new(fmt: &'a [u8], args: &'b [Argument]) -> Self {
+    pub fn new(fmt: &'a [u8], args: &'b [Argument<R>]) -> Self {
         Self {
             fmt: fmt,
             args: Some(args),
@@ -78,7 +75,7 @@ impl<'a, 'b> Message<'a, 'b> {
     /// [`EVECoprocessor`](crate::commands::EVECoprocessor)
     /// methods, to copy the data into the coprocessor ring buffer.
     #[inline]
-    pub const fn new_literal(lit: &'a [u8]) -> Self {
+    pub fn new_literal(lit: &'a [u8]) -> Self {
         Self {
             fmt: lit,
             args: None,
@@ -86,7 +83,7 @@ impl<'a, 'b> Message<'a, 'b> {
     }
 
     /// Returns true if the message should be used with the format option.
-    pub const fn needs_format(&self) -> bool {
+    pub fn needs_format(&self) -> bool {
         if let Some(_) = self.args {
             true
         } else {
@@ -94,6 +91,19 @@ impl<'a, 'b> Message<'a, 'b> {
         }
     }
 }
+
+/// NoMainMem is a stand-in memory region for messages that don't refer to
+/// main memory at all.
+#[derive(Debug)]
+pub enum NoMainMem {}
+
+impl crate::memory::MemoryRegion for NoMainMem {
+    const BASE_ADDR: u32 = 0;
+    const LENGTH: u32 = 0;
+    const DEBUG_NAME: &'static str = "NoMainMem";
+}
+impl crate::memory::HostAccessible for NoMainMem {}
+impl crate::memory::MainMem for NoMainMem {}
 
 #[cfg(test)]
 mod tests {
@@ -103,12 +113,12 @@ mod tests {
 
     #[test]
     fn test_instantiate_directly_no_args() {
-        let _got = Message::new(b"hi", &[]);
+        let _got: Message = Message::new(b"hi", &[]);
     }
 
     #[test]
     fn test_instantiate_directly_with_arg() {
-        let _got = Message::new(b"%d", &[Argument::Int(3)]);
+        let _got: Message = Message::new(b"%d", &[Argument::Int(3)]);
     }
 
     // We can't test the eve_format! macro directly here, because it

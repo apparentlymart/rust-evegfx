@@ -110,7 +110,7 @@ impl<R: MemoryRegion> core::fmt::Display for Ptr<R> {
 /// Memory regions exist only at compile time, as a facility to have the
 /// Rust type system help ensure valid use of pointers. At runtime we
 /// deal only in absolute addresses represented as u32.
-pub trait MemoryRegion: core::marker::Sized {
+pub trait MemoryRegion: core::marker::Sized + core::fmt::Debug {
     const BASE_ADDR: u32;
     const LENGTH: u32;
     const DEBUG_NAME: &'static str;

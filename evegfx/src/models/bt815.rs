@@ -1,7 +1,5 @@
 use super::{Model, WithExtFlashMem};
-use crate::low_level::LowLevel;
 use crate::memory;
-use crate::Interface;
 
 /// Device type representing the BT815 and BT816 models.
 ///
@@ -13,6 +11,7 @@ use crate::Interface;
 /// to [`EVE::new`](crate::EVE::new) along with a suitable
 /// [`Interface`](crate::Interface) for your underlying platform.
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct BT815;
 
 impl Model for BT815 {
@@ -26,6 +25,7 @@ impl WithExtFlashMem for BT815 {
     type ExtFlashMem = ExtFlashMem;
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MainMem {}
 impl memory::MemoryRegion for MainMem {
     const BASE_ADDR: u32 = 0x000000;
@@ -35,6 +35,7 @@ impl memory::MemoryRegion for MainMem {
 impl memory::HostAccessible for MainMem {}
 impl memory::MainMem for MainMem {}
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum DisplayListMem {}
 impl memory::MemoryRegion for DisplayListMem {
     const BASE_ADDR: u32 = 0x300000;
@@ -44,6 +45,7 @@ impl memory::MemoryRegion for DisplayListMem {
 impl memory::HostAccessible for DisplayListMem {}
 impl memory::DisplayListMem for DisplayListMem {}
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum RegisterMem {}
 impl memory::MemoryRegion for RegisterMem {
     const BASE_ADDR: u32 = 0x302000;
@@ -53,6 +55,7 @@ impl memory::MemoryRegion for RegisterMem {
 impl memory::HostAccessible for RegisterMem {}
 impl memory::RegisterMem for RegisterMem {}
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CommandMem {}
 impl memory::MemoryRegion for CommandMem {
     const BASE_ADDR: u32 = 0x308000;
@@ -62,6 +65,7 @@ impl memory::MemoryRegion for CommandMem {
 impl memory::HostAccessible for CommandMem {}
 impl memory::CommandMem for CommandMem {}
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ExtFlashMem {}
 impl memory::MemoryRegion for ExtFlashMem {
     const BASE_ADDR: u32 = 0x800000;

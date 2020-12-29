@@ -15,7 +15,7 @@ use crate::memory;
 /// correct address offsets for the different memory maps in different
 /// generations of the EVE line. They should be removed altogether by the
 /// compiler so as to have no appreciable effect at runtime.
-pub trait Model: Sized {
+pub trait Model: Sized + core::fmt::Debug {
     type MainMem: memory::MainMem;
     type DisplayListMem: memory::DisplayListMem;
     type RegisterMem: memory::RegisterMem;
@@ -43,6 +43,7 @@ pub(crate) mod testing {
     use super::*;
     use crate::memory;
 
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub(crate) enum Exhaustive {}
 
     impl Model for Exhaustive {
@@ -56,6 +57,7 @@ pub(crate) mod testing {
         type ExtFlashMem = ExtFlashMem;
     }
 
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub(crate) enum MainMem {}
     impl memory::MemoryRegion for MainMem {
         const BASE_ADDR: u32 = 0x000000;
@@ -65,6 +67,7 @@ pub(crate) mod testing {
     impl memory::HostAccessible for MainMem {}
     impl memory::MainMem for MainMem {}
 
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub(crate) enum DisplayListMem {}
     impl memory::MemoryRegion for DisplayListMem {
         const BASE_ADDR: u32 = 0x300000;
@@ -74,6 +77,7 @@ pub(crate) mod testing {
     impl memory::HostAccessible for DisplayListMem {}
     impl memory::DisplayListMem for DisplayListMem {}
 
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub(crate) enum RegisterMem {}
     impl memory::MemoryRegion for RegisterMem {
         const BASE_ADDR: u32 = 0x302000;
@@ -83,6 +87,7 @@ pub(crate) mod testing {
     impl memory::HostAccessible for RegisterMem {}
     impl memory::RegisterMem for RegisterMem {}
 
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub(crate) enum CommandMem {}
     impl memory::MemoryRegion for CommandMem {
         const BASE_ADDR: u32 = 0x308000;
@@ -92,6 +97,7 @@ pub(crate) mod testing {
     impl memory::HostAccessible for CommandMem {}
     impl memory::CommandMem for CommandMem {}
 
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub(crate) enum ExtFlashMem {}
     impl memory::MemoryRegion for ExtFlashMem {
         const BASE_ADDR: u32 = 0x800000;

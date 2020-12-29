@@ -22,11 +22,6 @@ pub mod strfmt;
 /// format string at compile tLowLevelthe format string must always be
 /// a quoted string constant.
 ///
-/// ```rust
-/// let val = 5;
-/// println!("Message is {:?}", evegfx::eve_format!("The current value is %d", val));
-/// ```
-///
 /// The coprocessor's formatter serves a similar purpose as Rust's own
 /// format functionality, but since the actual formatting operation happens
 /// inside the EVE coprocessor we can avoid including the potentially-large
