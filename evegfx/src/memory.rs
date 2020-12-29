@@ -7,7 +7,7 @@ use core::marker::PhantomData;
 /// Pointers are parameterized by memory region so that other parts of this
 /// library which consume pointers can statically constrain what memory regions
 /// they are able to refer to.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone)]
 pub struct Ptr<R: MemoryRegion> {
     addr: u32,
     _region: PhantomData<R>,
@@ -64,6 +64,42 @@ impl<R: MemoryRegion + HostAccessible> Ptr<R> {
         into[1] = (self.addr >> 8) as u8;
         into[2] = (self.addr >> 0) as u8;
         into[3] = 0; // "dummy byte", per the datasheet
+    }
+}
+
+impl<R1: MemoryRegion, R2: MemoryRegion<Model = R1::Model>> core::cmp::PartialEq<Ptr<R2>>
+    for Ptr<R1>
+{
+    fn eq(&self, other: &Ptr<R2>) -> bool {
+        self.addr == other.addr
+    }
+}
+
+impl<R: MemoryRegion> core::cmp::Eq for Ptr<R> {}
+
+impl<R1: MemoryRegion, R2: MemoryRegion<Model = R1::Model>> core::cmp::PartialOrd<Ptr<R2>>
+    for Ptr<R1>
+{
+    fn partial_cmp(&self, other: &Ptr<R2>) -> core::option::Option<core::cmp::Ordering> {
+        if self.addr == other.addr {
+            Some(core::cmp::Ordering::Equal)
+        } else if self.addr < other.addr {
+            Some(core::cmp::Ordering::Less)
+        } else {
+            Some(core::cmp::Ordering::Greater)
+        }
+    }
+}
+
+impl<R: MemoryRegion> core::cmp::Ord for Ptr<R> {
+    fn cmp(&self, other: &Ptr<R>) -> core::cmp::Ordering {
+        if self.addr == other.addr {
+            core::cmp::Ordering::Equal
+        } else if self.addr < other.addr {
+            core::cmp::Ordering::Less
+        } else {
+            core::cmp::Ordering::Greater
+        }
     }
 }
 
@@ -192,3 +228,47 @@ pub trait ExtFlashMem: MemoryRegion {}
 /// use the lower 22 bits of the address space, with the topmost 10 bits
 /// always set to zero.
 pub trait HostAccessible: MemoryRegion {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::testing::Exhaustive;
+    use crate::models::Model;
+
+    #[test]
+    fn test_ptr_eq() {
+        assert_eq!(
+            <Exhaustive as Model>::MainMem::ptr(1),
+            <Exhaustive as Model>::MainMem::ptr(1)
+        );
+        assert_ne!(
+            <Exhaustive as Model>::MainMem::ptr(1),
+            <Exhaustive as Model>::MainMem::ptr(2)
+        );
+        // Addresses from different memory regions on the same model are
+        // comparable, but will always return false because the address
+        // regions are required to be disjoint within a model.
+        assert_ne!(
+            <Exhaustive as Model>::MainMem::ptr(1),
+            <Exhaustive as Model>::DisplayListMem::ptr(1)
+        );
+    }
+
+    #[test]
+    fn test_ptr_cmp() {
+        assert!(<Exhaustive as Model>::MainMem::ptr(1) < <Exhaustive as Model>::MainMem::ptr(2));
+        assert!(<Exhaustive as Model>::MainMem::ptr(2) >= <Exhaustive as Model>::MainMem::ptr(2));
+        // Addresses from different memory regions on the same model are
+        // comparable, and reflect the relative positions of those regions
+        // in the memory map. In the case of the "Exhaustive" testing model,
+        // MainMem is at lower addresses than DisplayListMem in the memory
+        // map.
+        assert!(
+            <Exhaustive as Model>::MainMem::ptr(1) < <Exhaustive as Model>::DisplayListMem::ptr(1)
+        );
+        assert!(
+            !(<Exhaustive as Model>::MainMem::ptr(1)
+                > <Exhaustive as Model>::DisplayListMem::ptr(1))
+        );
+    }
+}
