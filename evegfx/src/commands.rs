@@ -382,13 +382,14 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF01))
     }
 
-    pub fn draw_button(
+    pub fn draw_button<Rect: Into<crate::graphics::WidgetRect>>(
         &mut self,
-        rect: crate::graphics::WidgetRect,
+        rect: Rect,
         msg: crate::strfmt::Message<M::MainMem>,
         font: options::FontRef,
         options: options::Button,
     ) -> Result<(), M, I, W> {
+        let rect: crate::graphics::WidgetRect = rect.into();
         self.write_stream(28, |cp| {
             cp.write_to_buffer(0xFFFFFF0D)?;
             cp.write_to_buffer(rect.x as u32 | ((rect.y as u32) << 16))?;
@@ -400,13 +401,14 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
         self.write_fmt_message(&msg)
     }
 
-    pub fn draw_text(
+    pub fn draw_text<Pos: Into<crate::graphics::WidgetPos>>(
         &mut self,
-        pos: crate::graphics::WidgetPos,
+        pos: Pos,
         msg: crate::strfmt::Message<M::MainMem>,
         font: options::FontRef,
         options: options::Text,
     ) -> Result<(), M, I, W> {
+        let pos: crate::graphics::WidgetPos = pos.into();
         self.write_stream(28, |cp| {
             cp.write_to_buffer(0xFFFFFF0C)?;
             cp.write_to_buffer(pos.x as u32 | ((pos.y as u32) << 16))?;
@@ -822,13 +824,12 @@ mod tests {
 
     #[test]
     fn test_draw_button_literal() {
-        use crate::graphics::*;
         use crate::strfmt::Message;
         use options::Options as _;
         let mut cp = test_obj(|_| {});
 
         unwrap_copro(cp.draw_button(
-            WidgetRect::new(10, 20, 100, 12),
+            (10, 20, 100, 12),
             Message::new_literal(b"hello world!\0"),
             options::FontRef::new_raw(31),
             options::Button::new().style(options::WidgetStyle::Flat),
@@ -854,13 +855,12 @@ mod tests {
 
     #[test]
     fn test_draw_button_fmt() {
-        use crate::graphics::*;
         use crate::strfmt::{Argument, Message};
         use options::Options as _;
         let mut cp = test_obj(|_| {});
 
         unwrap_copro(cp.draw_button(
-            WidgetRect::new(10, 20, 100, 12),
+            (10, 20, 100, 12),
             Message::new(b"hello %x!\0", &[Argument::UInt(0xf33df4c3)]),
             options::FontRef::new_raw(31),
             options::Button::new().style(options::WidgetStyle::Flat),

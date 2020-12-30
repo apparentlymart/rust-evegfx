@@ -2,6 +2,12 @@ mod color;
 mod pos;
 
 #[doc(inline)]
+pub use pos::Vertex2D;
+
+#[doc(inline)]
+pub use pos::Rect;
+
+#[doc(inline)]
 pub use color::RGB;
 
 #[doc(inline)]

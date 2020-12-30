@@ -139,10 +139,10 @@ fn main() {
         b.clear_all()?;
         b.begin(evegfx::display_list::GraphicsPrimitive::Points)?;
         b.point_size(100)?;
-        b.vertex_2f(Vertex2F::new(1000, 1000))?;
-        b.vertex_2f(Vertex2F::new(2000, 2000))?;
-        b.vertex_2f(Vertex2F::new(3000, 3000))?;
-        b.vertex_2f(Vertex2F::new(4000, 4000))?;
+        b.vertex_2f((1000, 1000))?;
+        b.vertex_2f((2000, 2000))?;
+        b.vertex_2f((3000, 3000))?;
+        b.vertex_2f((4000, 4000))?;
         b.display()
     })
     .unwrap();
@@ -167,19 +167,19 @@ fn main() {
         cp.clear_color_rgb(evegfx::graphics::RGB { r: 0, g: 127, b: 0 })?;
         cp.clear_all()?;
         cp.draw_button(
-            WidgetRect::new(10, 10, 200, 100),
+            (10, 10, 200, 100),
             evegfx::eve_format!("Hello!"),
             options::FontRef::new_raw(23),
             options::Button::new().style(options::WidgetStyle::ThreeD),
         )?;
         cp.draw_text(
-            WidgetPos::new(100, 140),
+            (100, 140),
             evegfx::eve_format!("hello %d!", 5),
             options::FontRef::new_raw(18),
             options::Text::new(),
         )?;
         cp.draw_text(
-            WidgetPos::new(100, 200),
+            (100, 200),
             evegfx::eve_format!("hello %d!", 5),
             options::FontRef::new_raw(25),
             options::Text::new(),

@@ -155,11 +155,13 @@ impl DLCmd {
         OpCode::POINT_SIZE.build(size as u32 & MASK)
     }
 
-    pub const fn vertex_2f(pos: Vertex2F) -> Self {
+    pub fn vertex_2f<Pos: Into<Vertex2F>>(pos: Pos) -> Self {
+        let pos: Vertex2F = pos.into();
         OpCode::VERTEX2F.build((pos.x as u32) << 15 | (pos.y as u32))
     }
 
-    pub const fn vertex_2ii(pos: Vertex2II) -> Self {
+    pub fn vertex_2ii<Pos: Into<Vertex2II>>(pos: Pos) -> Self {
+        let pos: Vertex2II = pos.into();
         OpCode::VERTEX2II.build((pos.x as u32) << 21 | (pos.y as u32) << 12)
     }
 }
@@ -216,11 +218,11 @@ pub trait Builder {
         self.append_command(DLCmd::point_size(size))
     }
 
-    fn vertex_2f(&mut self, pos: Vertex2F) -> Result<(), Self::Error> {
+    fn vertex_2f<Pos: Into<Vertex2F>>(&mut self, pos: Pos) -> Result<(), Self::Error> {
         self.append_command(DLCmd::vertex_2f(pos))
     }
 
-    fn vertex_2ii(&mut self, pos: Vertex2II) -> Result<(), Self::Error> {
+    fn vertex_2ii<Pos: Into<Vertex2II>>(&mut self, pos: Pos) -> Result<(), Self::Error> {
         self.append_command(DLCmd::vertex_2ii(pos))
     }
 }
