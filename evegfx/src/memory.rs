@@ -218,7 +218,7 @@ pub trait RegisterMem: MemoryRegion + HostAccessible {}
 pub trait CommandMem: MemoryRegion + HostAccessible {}
 
 pub trait CommandErrMem: MemoryRegion + HostAccessible {
-    type RawMessage: crate::commands::FaultMessageRaw;
+    type RawMessage: crate::commands::coprocessor::FaultMessageRaw;
 }
 
 /// Implemented by memory regions that can be accessed indirectly via the

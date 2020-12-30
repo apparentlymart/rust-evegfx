@@ -51,7 +51,7 @@ impl<'a, 'b, R: MainMem> Message<'a, 'b, R> {
     /// it refers to, so the caller must keep hold of those objects and
     /// keep them in scope for the lifetime of the `Message`. This type is
     /// intended only for transient use to temporarily lend the message data
-    /// to some of the [`EVECoprocessor`](crate::commands::EVECoprocessor)
+    /// to some of the [`Coprocessor`](crate::commands::Coprocessor)
     /// methods, to copy the data into the coprocessor ring buffer.
     #[inline]
     pub fn new(fmt: &'a [u8], args: &'b [Argument<R>]) -> Self {
@@ -72,7 +72,7 @@ impl<'a, 'b, R: MainMem> Message<'a, 'b, R> {
     /// caller must keep hold of those objects and keep them in scope for the
     /// lifetime of the `Message`. This type is intended only for transient use
     /// to temporarily lend the message data to some of the
-    /// [`EVECoprocessor`](crate::commands::EVECoprocessor)
+    /// [`Coprocessor`](crate::commands::Coprocessor)
     /// methods, to copy the data into the coprocessor ring buffer.
     #[inline]
     pub fn new_literal(lit: &'a [u8]) -> Self {

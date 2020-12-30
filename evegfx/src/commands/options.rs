@@ -1,3 +1,5 @@
+//! Various types used as arguments to coprocessor commands.
+
 pub trait Options: Clone + Copy + PartialEq + Eq {
     fn new() -> Self;
 }
