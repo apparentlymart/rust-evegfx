@@ -3,6 +3,10 @@ use crate::models::Model;
 use crate::registers::EVERegister;
 use crate::Interface;
 
+pub mod options;
+
+const OPT_FORMAT: u32 = 4096;
+
 pub type Result<T, M, I, W> = core::result::Result<
     T,
     EVECoprocessorError<<I as Interface>::Error, <W as EVECoprocessorWaiter<M, I>>::Error>,
@@ -236,6 +240,62 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
         result
     }
 
+    // Write a series of bytes into the output stream in chunks, with null
+    // padding at the end to ensure that the message ends on a four-byte
+    // word boundary.
+    fn write_bytes_chunked(&mut self, v: &[u8]) -> Result<(), M, I, W> {
+        const CHUNK_SIZE: usize = 4;
+        let mut chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
+        let mut remain = v;
+        while remain.len() > 0 {
+            let size = if remain.len() > CHUNK_SIZE {
+                CHUNK_SIZE
+            } else {
+                remain.len()
+            };
+            let padding = CHUNK_SIZE - size;
+            for i in 0..size {
+                chunk[i] = remain[i];
+            }
+            for i in 0..padding {
+                chunk[size + i] = 0;
+            }
+            remain = &remain[size..];
+
+            self.ensure_space(CHUNK_SIZE as u16)?;
+            let ei = self.ll.borrow_interface();
+            if self.known_space >= (CHUNK_SIZE as u16) {
+                self.known_space -= CHUNK_SIZE as u16;
+            } else {
+                self.known_space = 0;
+            }
+            Self::interface_result(ei.continue_write(&chunk))?;
+        }
+        Ok(())
+    }
+
+    fn write_fmt_message<R: crate::memory::MainMem>(
+        &mut self,
+        msg: &crate::strfmt::Message<'_, '_, R>,
+    ) -> Result<(), M, I, W> {
+        use crate::strfmt::Argument::*;
+        self.write_bytes_chunked(msg.fmt)?;
+        if let Some(args) = msg.args {
+            let arg_space = (args.len() * 4) as u16;
+            self.ensure_space(arg_space)?;
+            for arg in args {
+                let raw: u32 = match *arg {
+                    Int(v) => unsafe { core::mem::transmute(v) },
+                    UInt(v) => v,
+                    Char(v) => v as u32,
+                    String(ptr) => ptr.to_raw(),
+                };
+                self.write_to_buffer(raw)?;
+            }
+        }
+        Ok(())
+    }
+
     fn interface_result<T>(result: core::result::Result<T, I::Error>) -> Result<T, M, I, W> {
         match result {
             Ok(v) => Ok(v),
@@ -316,12 +376,23 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF01))
     }
 
-    pub fn draw_text(
+    pub fn draw_button(
         &mut self,
-        _msg: crate::strfmt::Message<M::MainMem>,
-        // TODO: other options too
+        rect: crate::graphics::WidgetRect,
+        msg: crate::strfmt::Message<M::MainMem>,
+        font: options::FontRef,
+        options: options::Button,
     ) -> Result<(), M, I, W> {
-        todo!();
+        self.write_stream(28, |cp| {
+            cp.write_to_buffer(0xFFFFFF0D)?;
+            cp.write_to_buffer(rect.x as u32)?;
+            cp.write_to_buffer(rect.y as u32)?;
+            cp.write_to_buffer(rect.w as u32)?;
+            cp.write_to_buffer(rect.h as u32)?;
+            cp.write_to_buffer(font.to_raw() as u32)?;
+            cp.write_to_buffer(maybe_opt_format(options.to_raw(), &msg))
+        })?;
+        self.write_fmt_message(&msg)
     }
 
     pub fn append_display_list(&mut self, cmd: crate::display_list::DLCmd) -> Result<(), M, I, W> {
@@ -449,6 +520,17 @@ impl<M: Model, I: Interface> EVECoprocessorWaiter<M, I> for PollingCoprocessorWa
                 return Ok(known_space);
             }
         }
+    }
+}
+
+fn maybe_opt_format<R: crate::memory::MainMem>(
+    given: u32,
+    msg: &crate::strfmt::Message<'_, '_, R>,
+) -> u32 {
+    if msg.needs_format() {
+        given | OPT_FORMAT
+    } else {
+        given
     }
 }
 
@@ -606,6 +688,76 @@ mod tests {
             MockInterfaceCall::StartStream,
             MockInterfaceCall::Write(0xffffff65), // CMD_WAIT
             MockInterfaceCall::Write(12345),      // the duration value from above
+            MockInterfaceCall::StopStream,
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
+    fn test_draw_button_literal() {
+        use crate::graphics::*;
+        use crate::strfmt::Message;
+        use options::Options as _;
+        let mut cp = test_obj(|_| {});
+
+        unwrap_copro(cp.draw_button(
+            WidgetRect::new(10, 20, 100, 12),
+            Message::new_literal(b"hello world!\0"),
+            options::FontRef::new_raw(31),
+            options::Button::new().style(options::WidgetStyle::Flat),
+        ));
+
+        let ei = unwrap_copro(cp.take_interface());
+        let got = ei.calls();
+        let want = vec![
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::Write(0xffffff0d), // CMD_BUTTON
+            MockInterfaceCall::Write(10),         // the x coordinate
+            MockInterfaceCall::Write(20),         // the y coordinate
+            MockInterfaceCall::Write(100),        // the width
+            MockInterfaceCall::Write(12),         // the height
+            MockInterfaceCall::Write(31),         // the font index
+            MockInterfaceCall::Write(256),        // OPT_FLAT
+            MockInterfaceCall::Write(0x6c6c6568), // 'h' 'e' 'l' 'l' (interpreted as LE int)
+            MockInterfaceCall::Write(0x6f77206f), // 'o' ' ' 'w' 'o' (interpreted as LE int)
+            MockInterfaceCall::Write(0x21646c72), // 'r' 'l' 'd' '!'
+            MockInterfaceCall::Write(0x00000000), // null terminator and padding
+            MockInterfaceCall::StopStream,
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
+    fn test_draw_button_fmt() {
+        use crate::graphics::*;
+        use crate::strfmt::{Argument, Message};
+        use options::Options as _;
+        let mut cp = test_obj(|_| {});
+
+        unwrap_copro(cp.draw_button(
+            WidgetRect::new(10, 20, 100, 12),
+            Message::new(b"hello %x!\0", &[Argument::UInt(0xf33df4c3)]),
+            options::FontRef::new_raw(31),
+            options::Button::new().style(options::WidgetStyle::Flat),
+        ));
+
+        let ei = unwrap_copro(cp.take_interface());
+        let got = ei.calls();
+        let want = vec![
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::Write(0xffffff0d), // CMD_BUTTON
+            MockInterfaceCall::Write(10),         // the x coordinate
+            MockInterfaceCall::Write(20),         // the y coordinate
+            MockInterfaceCall::Write(100),        // the width
+            MockInterfaceCall::Write(12),         // the height
+            MockInterfaceCall::Write(31),         // the font index
+            MockInterfaceCall::Write(4096 | 256), // OPT_FORMAT|OPT_FLAT
+            MockInterfaceCall::Write(0x6c6c6568), // 'h' 'e' 'l' 'l' (interpreted as LE int)
+            MockInterfaceCall::Write(0x7825206f), // 'o' ' ' '%' 'x' (interpreted as LE int)
+            MockInterfaceCall::Write(0x00000021), // '!', null terminator and padding
+            MockInterfaceCall::Write(0xf33df4c3), // The format argument
             MockInterfaceCall::StopStream,
         ];
         debug_assert_eq!(&got[..], &want[..]);

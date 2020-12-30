@@ -18,3 +18,6 @@ pub use pos::GlobalTranslation;
 
 #[doc(inline)]
 pub use pos::WidgetPos;
+
+#[doc(inline)]
+pub use pos::WidgetRect;

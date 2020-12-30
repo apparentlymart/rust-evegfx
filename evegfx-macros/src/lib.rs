@@ -130,6 +130,9 @@ pub fn eve_format(input: TokenStream) -> TokenStream {
         return err.into_compile_error().into();
     }
 
+    // EVE expects format strings to be null-terminated.
+    format_chars.push(0);
+
     let mut args: Punctuated<Expr, syn::Token![,]> = Punctuated::new();
     args.push(byte_string_expr(&format_chars, fmt.span()));
     if needs_fmt {

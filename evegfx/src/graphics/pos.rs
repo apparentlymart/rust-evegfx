@@ -73,6 +73,56 @@ impl<S: CoordinateSystem> core::convert::Into<(S::Dim, S::Dim)> for Vertex2D<S> 
     }
 }
 
+type WidgetDim = <ForCoprocessorWidgets as CoordinateSystem>::Dim;
+
+/// Description of a rectangular region to render a coprocessor widget into.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct WidgetRect {
+    pub(crate) x: WidgetDim,
+    pub(crate) y: WidgetDim,
+    pub(crate) w: WidgetDim,
+    pub(crate) h: WidgetDim,
+}
+
+impl WidgetRect {
+    #[inline]
+    pub const fn new(x: WidgetDim, y: WidgetDim, w: WidgetDim, h: WidgetDim) -> Self {
+        Self {
+            x: x,
+            y: y,
+            w: w,
+            h: h,
+        }
+    }
+
+    #[inline]
+    pub fn top_left(self) -> WidgetPos {
+        WidgetPos::new(self.x, self.y)
+    }
+
+    #[inline]
+    pub fn bottom_right(self) -> WidgetPos {
+        WidgetPos::new(self.x + self.w, self.y + self.h)
+    }
+
+    #[inline]
+    pub fn size(self) -> (WidgetDim, WidgetDim) {
+        (self.w, self.h)
+    }
+}
+
+impl core::convert::From<(WidgetDim, WidgetDim, WidgetDim, WidgetDim)> for WidgetRect {
+    fn from(coords: (WidgetDim, WidgetDim, WidgetDim, WidgetDim)) -> Self {
+        Self::new(coords.0, coords.1, coords.2, coords.3)
+    }
+}
+
+impl core::convert::Into<(WidgetDim, WidgetDim, WidgetDim, WidgetDim)> for WidgetRect {
+    fn into(self) -> (WidgetDim, WidgetDim, WidgetDim, WidgetDim) {
+        (self.x, self.y, self.w, self.h)
+    }
+}
+
 pub trait CoordinateSystem {
     type Dim: Sized
         + Add<Output = Self::Dim>
