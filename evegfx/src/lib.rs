@@ -3,6 +3,7 @@
 pub mod color;
 pub mod commands;
 pub mod display_list;
+pub mod graphics;
 pub mod graphics_mode;
 pub mod host_commands;
 pub mod init;

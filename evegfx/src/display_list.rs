@@ -1,3 +1,4 @@
+use crate::graphics::{Vertex2F, Vertex2II, RGB, RGBA};
 use core::convert::TryFrom;
 use core::fmt::Debug;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -125,7 +126,7 @@ impl DLCmd {
         )
     }
 
-    pub const fn clear_color_rgb(color: crate::color::EVEColorRGB) -> Self {
+    pub const fn clear_color_rgb(color: RGB) -> Self {
         OpCode::CLEAR_COLOR_RGB
             .build((color.r as u32) << 16 | (color.g as u32) << 8 | (color.b as u32) << 0)
     }
@@ -134,7 +135,7 @@ impl DLCmd {
         OpCode::CLEAR_COLOR_A.build(alpha as u32)
     }
 
-    pub const fn clear_color_rgba_pair(color: crate::color::EVEColorRGBA) -> (Self, Self) {
+    pub const fn clear_color_rgba_pair(color: RGBA) -> (Self, Self) {
         (
             Self::clear_color_rgb(color.as_rgb()),
             Self::clear_color_alpha(color.a),
@@ -154,9 +155,12 @@ impl DLCmd {
         OpCode::POINT_SIZE.build(size as u32 & MASK)
     }
 
-    pub const fn vertex2f(x: u16, y: u16) -> Self {
-        const MASK: u32 = 0b01111111111111111;
-        OpCode::VERTEX2F.build((x as u32 & MASK) << 15 | (y as u32 & MASK))
+    pub const fn vertex_2f(pos: Vertex2F) -> Self {
+        OpCode::VERTEX2F.build((pos.x as u32) << 15 | (pos.y as u32))
+    }
+
+    pub const fn vertex_2ii(pos: Vertex2II) -> Self {
+        OpCode::VERTEX2II.build((pos.x as u32) << 21 | (pos.y as u32) << 12)
     }
 }
 
@@ -186,7 +190,7 @@ pub trait Builder {
         self.append_command(DLCmd::CLEAR_ALL)
     }
 
-    fn clear_color_rgb(&mut self, color: crate::color::EVEColorRGB) -> Result<(), Self::Error> {
+    fn clear_color_rgb(&mut self, color: RGB) -> Result<(), Self::Error> {
         self.append_command(DLCmd::clear_color_rgb(color))
     }
 
@@ -194,7 +198,7 @@ pub trait Builder {
         self.append_command(DLCmd::clear_color_alpha(alpha))
     }
 
-    fn clear_color_rgba(&mut self, color: crate::color::EVEColorRGBA) -> Result<(), Self::Error> {
+    fn clear_color_rgba(&mut self, color: RGBA) -> Result<(), Self::Error> {
         let cmds = DLCmd::clear_color_rgba_pair(color);
         self.append_command(cmds.0)?;
         self.append_command(cmds.1)
@@ -212,8 +216,12 @@ pub trait Builder {
         self.append_command(DLCmd::point_size(size))
     }
 
-    fn vertex2f(&mut self, x: u16, y: u16) -> Result<(), Self::Error> {
-        self.append_command(DLCmd::vertex2f(x, y))
+    fn vertex_2f(&mut self, pos: Vertex2F) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::vertex_2f(pos))
+    }
+
+    fn vertex_2ii(&mut self, pos: Vertex2II) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::vertex_2ii(pos))
     }
 }
 
@@ -276,7 +284,8 @@ enum OpCode {
     DISPLAY = 0x00,
     END = 0x21,
     POINT_SIZE = 0x0d,
-    VERTEX2F = 0b01000000, // This opcode is packed into the two MSB
+    VERTEX2F = 0b01000000,  // This opcode is packed into the two MSB
+    VERTEX2II = 0b10000000, // This opcode is packed into the two MSB
 }
 
 impl OpCode {
