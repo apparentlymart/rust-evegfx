@@ -214,8 +214,21 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
         let stopped = self.stop_stream()?;
         {
             let (ll, wait) = self.borrow_low_level_and_waiter(&stopped);
-            let known_space = Self::waiter_result(wait.wait_for_space(ll, need))?;
-            self.known_space = known_space;
+            match wait.wait_for_space(ll, need) {
+                Ok(known_space) => {
+                    self.known_space = known_space;
+                }
+                Err(err) => {
+                    // We don't know how much space we have, so we'll set it
+                    // to zero to force calling the waiter again next time.
+                    self.known_space = 0;
+
+                    return Err(match err {
+                        WaiterError::Comm(err) => EVECoprocessorError::Waiter(err),
+                        WaiterError::Fault => EVECoprocessorError::Fault,
+                    });
+                }
+            }
         }
         self.start_stream(stopped)?;
         Ok(())
@@ -300,13 +313,6 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
         match result {
             Ok(v) => Ok(v),
             Err(err) => Err(EVECoprocessorError::Interface(err)),
-        }
-    }
-
-    fn waiter_result<T>(result: core::result::Result<T, W::Error>) -> Result<T, M, I, W> {
-        match result {
-            Ok(v) => Ok(v),
-            Err(err) => Err(EVECoprocessorError::Waiter(err)),
         }
     }
 }
@@ -440,6 +446,41 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
     }
 }
 
+/// These methods are available only when working with a model that has a
+/// coprocessor error message memory space.
+impl<M, I, W> EVECoprocessor<M, I, W>
+where
+    M: Model + crate::models::WithCommandErrMem,
+    I: Interface,
+    W: EVECoprocessorWaiter<M, I>,
+{
+    /// Returns the fault message currently available in the EVE coprocessor's
+    /// fault message memory space.
+    ///
+    /// It's only meaningful to call this immediately after another coprocessor
+    /// method returns the error variant `Fault`, before submitting any other
+    /// coprocessor commands.
+    ///
+    /// The format of the returned message is determined entirely by the
+    /// EVE chip, though it is typically a sequence of bytes representing an
+    /// ASCII string.
+    pub fn coprocessor_fault_msg(&mut self) -> Result<FaultMessage<M::CommandErrMem>, M, I, W> {
+        use crate::memory::{CommandErrMem, MemoryRegion};
+        use crate::models::WithCommandErrMem;
+
+        let stopped = self.stop_stream()?;
+        let mut raw = <<M as WithCommandErrMem>::CommandErrMem as CommandErrMem>::RawMessage::new();
+        {
+            let into = raw.as_storage_bytes();
+            let ll = self.borrow_low_level(&stopped);
+            let addr = <<M as WithCommandErrMem>::CommandErrMem as MemoryRegion>::ptr(0);
+            Self::interface_result(ll.rd8s(addr, into))?;
+        }
+        self.start_stream(stopped)?;
+        Ok(FaultMessage::new(raw))
+    }
+}
+
 // This type is used to create a zero-cost token representing codepaths in
 // the EVECoprocessor type where the stream is stopped, to help ensure correct
 // discipline around which functions expect to be called with the stream
@@ -467,6 +508,60 @@ where
     }
 }
 
+#[derive(Debug)]
+pub enum EVECoprocessorError<IErr, WErr> {
+    Interface(IErr),
+    Waiter(WErr),
+    Fault,
+}
+
+/// Represents a coprocessor fault message retrieved from the EVE device.
+#[derive(Debug, Clone)]
+pub struct FaultMessage<R: crate::memory::CommandErrMem>(R::RawMessage);
+
+impl<R: crate::memory::CommandErrMem> FaultMessage<R> {
+    fn new(raw: R::RawMessage) -> Self {
+        Self(raw)
+    }
+
+    pub fn as_bytes<'a>(&'a self) -> &'a [u8] {
+        self.0.as_bytes()
+    }
+}
+
+#[doc(hide)]
+pub trait FaultMessageRaw {
+    fn new() -> Self;
+    fn as_bytes<'a>(&'a self) -> &'a [u8];
+    fn as_storage_bytes<'a>(&'a mut self) -> &'a mut [u8];
+}
+
+// [u8; 128] is the only raw type currently used by any models. We might need
+// to add more of these if other models use different lengths in the future.
+impl FaultMessageRaw for [u8; 128] {
+    fn new() -> Self {
+        [0; 128]
+    }
+
+    fn as_bytes<'a>(&'a self) -> &'a [u8] {
+        // There should be a null terminator somewhere in the raw buffer,
+        // which marks how long our returned slice ought to be.
+        let all = &self[..];
+        for (i, b) in all.iter().enumerate() {
+            if *b == 0 {
+                return &all[0..i];
+            }
+        }
+        // We shouldn't get down here for a valid error string, but we'll
+        // be robust and just return the whole "string" in that case.
+        all
+    }
+
+    fn as_storage_bytes<'a>(&'a mut self) -> &'a mut [u8] {
+        &mut self[..]
+    }
+}
+
 /// A `CoprocessorWaiter` is an object that knows how to block until the
 /// coprocessor ring buffer is at least empty enough to receive a forthcoming
 /// message.
@@ -483,13 +578,22 @@ pub trait EVECoprocessorWaiter<M: Model, I: Interface> {
         &mut self,
         ell: &mut LowLevel<M, I>,
         need: u16,
-    ) -> core::result::Result<u16, Self::Error>;
+    ) -> core::result::Result<u16, WaiterError<Self::Error>>;
 }
 
 #[derive(Debug)]
-pub enum EVECoprocessorError<IErr, WErr> {
-    Interface(IErr),
-    Waiter(WErr),
+pub enum WaiterError<E: Sized> {
+    Comm(E),
+    Fault,
+}
+
+fn waiter_comm_result<R, E: Sized>(
+    result: core::result::Result<R, E>,
+) -> core::result::Result<R, WaiterError<E>> {
+    match result {
+        Ok(v) => Ok(v),
+        Err(err) => Err(WaiterError::Comm(err)),
+    }
 }
 
 pub struct PollingCoprocessorWaiter<M: Model, I: Interface> {
@@ -513,9 +617,13 @@ impl<M: Model, I: Interface> EVECoprocessorWaiter<M, I> for PollingCoprocessorWa
         &mut self,
         ell: &mut LowLevel<M, I>,
         need: u16,
-    ) -> core::result::Result<u16, Self::Error> {
+    ) -> core::result::Result<u16, WaiterError<Self::Error>> {
         loop {
-            let known_space = ell.rd16(ell.reg_ptr(EVERegister::CMDB_SPACE))?;
+            let known_space = waiter_comm_result(ell.rd16(ell.reg_ptr(EVERegister::CMDB_SPACE)))?;
+            if (known_space % 4) != 0 {
+                // An unaligned amount of space indicates a coprocessor fault.
+                return Err(WaiterError::Fault);
+            }
             if known_space >= need {
                 return Ok(known_space);
             }
@@ -568,6 +676,9 @@ mod tests {
                 }
                 EVECoprocessorError::Waiter(_) => {
                     std::panic!("waiter error");
+                }
+                EVECoprocessorError::Fault => {
+                    std::panic!("coprocessor fault");
                 }
             },
         }

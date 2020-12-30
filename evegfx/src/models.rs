@@ -39,6 +39,12 @@ pub trait WithExtFlashMem: Model {
     type ExtFlashMem: memory::ExtFlashMem;
 }
 
+/// Implemented by model types that have some memory space set aside for
+/// reporting coprocessor fault messages.
+pub trait WithCommandErrMem: Model {
+    type CommandErrMem: memory::CommandErrMem;
+}
+
 pub(crate) mod testing {
     use super::*;
     use crate::memory;
@@ -55,6 +61,10 @@ pub(crate) mod testing {
 
     impl WithExtFlashMem for Exhaustive {
         type ExtFlashMem = ExtFlashMem;
+    }
+
+    impl WithCommandErrMem for Exhaustive {
+        type CommandErrMem = CommandErrMem;
     }
 
     #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -100,6 +110,19 @@ pub(crate) mod testing {
     }
     impl memory::HostAccessible for CommandMem {}
     impl memory::CommandMem for CommandMem {}
+
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+    pub(crate) enum CommandErrMem {}
+    impl memory::MemoryRegion for CommandErrMem {
+        type Model = Exhaustive;
+        const BASE_ADDR: u32 = 0x309800;
+        const LENGTH: u32 = 128;
+        const DEBUG_NAME: &'static str = "CommandErrMem";
+    }
+    impl memory::HostAccessible for CommandErrMem {}
+    impl memory::CommandErrMem for CommandErrMem {
+        type RawMessage = [u8; 128];
+    }
 
     #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub(crate) enum ExtFlashMem {}

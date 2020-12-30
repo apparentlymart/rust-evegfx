@@ -57,7 +57,25 @@ where
     }
 
     fn continue_read(&mut self, into: &mut [u8]) -> Result<(), Self::Error> {
-        self.sd.transfer(into)?;
+        // The underlying SPIDriver API can only read 64 bytes at a time,
+        // so if our buffer is larger than that then we'll need to make
+        // multiple calls.
+        const MAX_SIZE: usize = 64;
+
+        let mut remain = into;
+        while remain.len() > 0 {
+            let remain_size = remain.len();
+            let size = if remain_size > MAX_SIZE {
+                MAX_SIZE
+            } else {
+                remain_size
+            };
+            {
+                let this = &mut remain[..size];
+                self.sd.transfer(this)?;
+            }
+            remain = &mut remain[size..];
+        }
         Ok(())
     }
 

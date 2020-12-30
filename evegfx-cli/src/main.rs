@@ -122,9 +122,8 @@ fn main() {
     })
     .unwrap();
     println!("Sending initial display list...");
-    /*
     eve.new_display_list(|b| {
-        b.clear_color_rgb(evegfx::color::EVEColorRGB {
+        b.clear_color_rgb(evegfx::graphics::RGB {
             r: 255,
             g: 255,
             b: 255,
@@ -134,23 +133,24 @@ fn main() {
     })
     .unwrap();
     eve.new_display_list(|b| {
-        b.clear_color_rgb(evegfx::color::EVEColorRGB { r: 0, g: 0, b: 10 })?;
+        use evegfx::display_list::Builder;
+        use evegfx::graphics::*;
+        b.clear_color_rgb(evegfx::graphics::RGB { r: 0, g: 0, b: 10 })?;
         b.clear_all()?;
         b.begin(evegfx::display_list::GraphicsPrimitive::Points)?;
         b.point_size(100)?;
-        b.vertex2f(1000, 1000)?;
-        b.vertex2f(2000, 2000)?;
-        b.vertex2f(3000, 3000)?;
-        b.vertex2f(4000, 4000)?;
+        b.vertex_2f(Vertex2F::new(1000, 1000))?;
+        b.vertex_2f(Vertex2F::new(2000, 2000))?;
+        b.vertex_2f(Vertex2F::new(3000, 3000))?;
+        b.vertex_2f(Vertex2F::new(4000, 4000))?;
         b.display()
     })
     .unwrap();
-    */
     println!("Activating the pixel clock...");
     eve.start_video(TIMINGS).unwrap();
 
     println!("Starting coprocessor...");
-    let cp = must(eve.coprocessor_polling());
+    let cp = eve.coprocessor_polling().unwrap();
     let mut cp = cp.with_new_waiter(|old| LogWaiter::new(old));
 
     //println!("Using the coprocessor to show a testcard...");
@@ -159,12 +159,22 @@ fn main() {
     //must(cp.show_manufacturer_logo());
 
     println!("Using the coprocessor to present a new display list...");
-    must(cp.new_display_list(|cp| {
+    cp.new_display_list(|cp| {
+        use evegfx::commands::options;
+        use evegfx::commands::options::Options;
+        use evegfx::graphics::*;
+        use evegfx::strfmt::Message;
         cp.clear_color_rgb(evegfx::graphics::RGB { r: 0, g: 0, b: 127 })?;
         cp.clear_all()?;
-        //cp.draw_text(evegfx::eve_format!("hello %s", evegfx::memory::Ptr::new(2)))?;
+        cp.draw_button(
+            WidgetRect::new(10, 20, 100, 12),
+            Message::new_literal(b"hello world!\0"),
+            options::FontRef::new_raw(31),
+            options::Button::new().style(options::WidgetStyle::Flat),
+        )?;
         cp.display()
-    }));
+    })
+    .unwrap();
 
     /*
     println!("Entering main loop...");
@@ -175,15 +185,15 @@ fn main() {
     const MAX_X: i16 = 10000;
     const MAX_Y: i16 = 10000;
     loop {
-        must(cp.block_until_video_scanout());
-        must(cp.new_display_list(|cp| {
+        cp.block_until_video_scanout().unwrap();
+        cp.new_display_list(|cp| {
             cp.clear_color_rgb(evegfx::color::EVEColorRGB { r: 0, g: 0, b: 127 })?;
             cp.clear_all()?;
             cp.begin(evegfx::display_list::GraphicsPrimitive::Points)?;
             cp.point_size(100)?;
             cp.vertex2f(ball_x as u16, ball_y as u16)?;
             cp.display()
-        }));
+        }).unwrap();
         ball_x += ball_dx;
         ball_y += ball_dy;
         if ball_x < 0 {
@@ -206,7 +216,24 @@ fn main() {
     */
 
     println!("Waiting for the coprocessor to become idle...");
-    must(cp.block_until_idle());
+    match cp.block_until_idle() {
+        Ok(_) => {}
+        Err(err) => match err {
+            evegfx::commands::EVECoprocessorError::Interface(err) => {
+                panic!("interface error: {:?}", err);
+            }
+            evegfx::commands::EVECoprocessorError::Waiter(err) => {
+                panic!("waiter error: {:?}", err);
+            }
+            evegfx::commands::EVECoprocessorError::Fault => {
+                println!("Fetching the coprocessor fault message...");
+                let fault_msg_raw = cp.coprocessor_fault_msg().unwrap();
+                let fault_msg = std::str::from_utf8(fault_msg_raw.as_bytes()).unwrap();
+                panic!("coprocessor fault: {:?}", fault_msg);
+            }
+        },
+    }
+    cp.block_until_idle().unwrap();
 
     println!("All done!");
 
@@ -214,15 +241,6 @@ fn main() {
     let ll = eve.borrow_low_level();
     show_current_dl(ll);
     */
-}
-
-// This is similar to calling `.unwrap` on the result except that it also
-// works for error types that don't implement core::fmt::Debug.
-fn must<T, E>(result: Result<T, E>) -> T {
-    match result {
-        Ok(v) => v,
-        Err(_) => panic!("unexpected error"),
-    }
 }
 
 fn show_register<M: Model, I: Interface>(
@@ -378,7 +396,7 @@ impl<M: Model, I: Interface, W: evegfx::commands::EVECoprocessorWaiter<M, I>>
         &mut self,
         ll: &mut evegfx::low_level::LowLevel<M, I>,
         need: u16,
-    ) -> std::result::Result<u16, W::Error> {
+    ) -> std::result::Result<u16, evegfx::commands::WaiterError<W::Error>> {
         println!(
             "- waiting for coprocessor buffer to have {} ({:#06x?}) bytes of space",
             need, need,

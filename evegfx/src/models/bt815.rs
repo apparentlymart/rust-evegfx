@@ -1,4 +1,4 @@
-use super::{Model, WithExtFlashMem};
+use super::{Model, WithCommandErrMem, WithExtFlashMem};
 use crate::memory;
 
 /// Device type representing the BT815 and BT816 models.
@@ -23,6 +23,10 @@ impl Model for BT815 {
 
 impl WithExtFlashMem for BT815 {
     type ExtFlashMem = ExtFlashMem;
+}
+
+impl WithCommandErrMem for BT815 {
+    type CommandErrMem = CommandErrMem;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -68,6 +72,19 @@ impl memory::MemoryRegion for CommandMem {
 }
 impl memory::HostAccessible for CommandMem {}
 impl memory::CommandMem for CommandMem {}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum CommandErrMem {}
+impl memory::MemoryRegion for CommandErrMem {
+    type Model = BT815;
+    const BASE_ADDR: u32 = 0x309800;
+    const LENGTH: u32 = 128;
+    const DEBUG_NAME: &'static str = "CommandErrMem";
+}
+impl memory::HostAccessible for CommandErrMem {}
+impl memory::CommandErrMem for CommandErrMem {
+    type RawMessage = [u8; 128];
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ExtFlashMem {}
