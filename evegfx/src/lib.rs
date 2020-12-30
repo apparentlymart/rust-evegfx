@@ -174,13 +174,13 @@ impl<M: Model, I: Interface> EVE<M, I> {
     /// register writes and then do all of the main application activities
     /// via the coprocessor, which exposes all of the system's capabilities
     /// either directly or indirectly.
-    pub fn coprocessor<W: commands::EVECoprocessorWaiter<M, I>>(
+    pub fn coprocessor<W: commands::CoprocessorWaiter<M, I>>(
         self,
         waiter: W,
-    ) -> Result<commands::EVECoprocessor<M, I, W>, commands::EVECoprocessorError<I::Error, W::Error>>
+    ) -> Result<commands::Coprocessor<M, I, W>, commands::CoprocessorError<I::Error, W::Error>>
     {
         let ei = self.ll.take_interface();
-        commands::EVECoprocessor::new(ei, waiter)
+        commands::Coprocessor::new(ei, waiter)
     }
 
     /// A wrapper around `coprocessor` which automatically provides a
@@ -197,12 +197,12 @@ impl<M: Model, I: Interface> EVE<M, I> {
     pub fn coprocessor_polling(
         self,
     ) -> commands::Result<
-        commands::EVECoprocessor<M, I, commands::PollingCoprocessorWaiter<M, I>>,
+        commands::Coprocessor<M, I, commands::PollingCoprocessorWaiter<M, I>>,
         M,
         I,
         commands::PollingCoprocessorWaiter<M, I>,
     > {
         let ei = self.ll.take_interface();
-        commands::EVECoprocessor::new_polling(ei)
+        commands::Coprocessor::new_polling(ei)
     }
 }

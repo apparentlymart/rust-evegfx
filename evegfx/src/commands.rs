@@ -9,7 +9,7 @@ const OPT_FORMAT: u32 = 4096;
 
 pub type Result<T, M, I, W> = core::result::Result<
     T,
-    EVECoprocessorError<<I as Interface>::Error, <W as EVECoprocessorWaiter<M, I>>::Error>,
+    CoprocessorError<<I as Interface>::Error, <W as CoprocessorWaiter<M, I>>::Error>,
 >;
 
 /// An interface to the command ring buffer for the EVE chip's coprocessor
@@ -17,7 +17,7 @@ pub type Result<T, M, I, W> = core::result::Result<
 ///
 /// This object encapsulates the handling of the ring buffer and provides an
 /// API for appending
-pub struct EVECoprocessor<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> {
+pub struct Coprocessor<M: Model, I: Interface, W: CoprocessorWaiter<M, I>> {
     ll: LowLevel<M, I>,
     wait: W,
 
@@ -34,7 +34,7 @@ pub struct EVECoprocessor<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>>
     known_space: u16,
 }
 
-impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I, W> {
+impl<M: Model, I: Interface, W: CoprocessorWaiter<M, I>> Coprocessor<M, I, W> {
     /// Consumes the given interface and waiter and returns an interface to
     /// the coprocessor via the given interface.
     ///
@@ -42,7 +42,7 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
     /// writing into the command ring buffer of the associated EVE chip and
     /// so it isn't safe to do any other concurrent access. You can get
     /// the underlying interface back again if you need it using some of
-    /// the methods of `EVECoprocessor`.
+    /// the methods of `Coprocessor`.
     pub fn new(ei: I, wait: W) -> Result<Self, M, I, W> {
         let mut ll = crate::low_level::LowLevel::new(ei);
 
@@ -84,9 +84,9 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
     /// implementation that does additional logging or tracking of waiting,
     /// if needed for debugging or development, without needing to first
     /// determine what kind of waiter the object previously had.
-    pub fn with_new_waiter<W2, F>(self, f: F) -> EVECoprocessor<M, I, W2>
+    pub fn with_new_waiter<W2, F>(self, f: F) -> Coprocessor<M, I, W2>
     where
-        W2: EVECoprocessorWaiter<M, I>,
+        W2: CoprocessorWaiter<M, I>,
         F: FnOnce(W) -> W2,
     {
         let ll = self.ll;
@@ -95,7 +95,7 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
 
         let new_wait = f(old_wait);
 
-        EVECoprocessor {
+        Coprocessor {
             ll: ll,
             wait: new_wait,
             known_space: old_known_space,
@@ -224,8 +224,8 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
                     self.known_space = 0;
 
                     return Err(match err {
-                        WaiterError::Comm(err) => EVECoprocessorError::Waiter(err),
-                        WaiterError::Fault => EVECoprocessorError::Fault,
+                        WaiterError::Comm(err) => CoprocessorError::Waiter(err),
+                        WaiterError::Fault => CoprocessorError::Fault,
                     });
                 }
             }
@@ -312,12 +312,12 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
     fn interface_result<T>(result: core::result::Result<T, I::Error>) -> Result<T, M, I, W> {
         match result {
             Ok(v) => Ok(v),
-            Err(err) => Err(EVECoprocessorError::Interface(err)),
+            Err(err) => Err(CoprocessorError::Interface(err)),
         }
     }
 }
 
-impl<M: Model, I: Interface> EVECoprocessor<M, I, PollingCoprocessorWaiter<M, I>> {
+impl<M: Model, I: Interface> Coprocessor<M, I, PollingCoprocessorWaiter<M, I>> {
     /// Consumes the given interface and returns an interface to the
     /// coprocessor via the given interface, which will use busy-polling to
     /// wait when there isn't enough buffer space.
@@ -338,7 +338,7 @@ impl<M: Model, I: Interface> EVECoprocessor<M, I, PollingCoprocessorWaiter<M, I>
 /// These will block using the waiter if they run out of coprocessor buffer
 /// space, but they will not wait if there's enough buffer space available to
 /// write into.
-impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I, W> {
+impl<M: Model, I: Interface, W: CoprocessorWaiter<M, I>> Coprocessor<M, I, W> {
     /// A convenience function for enclosing a series of coprocessor commands
     /// in `start_display_list` and `display_list_swap` commands.
     ///
@@ -446,7 +446,7 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
 /// coprocessor commands have completed, and so applications making heavy
 /// use of these may wish to consider supplying a tailored waiter
 /// implementation that can avoid busy-waiting.
-impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I, W> {
+impl<M: Model, I: Interface, W: CoprocessorWaiter<M, I>> Coprocessor<M, I, W> {
     /// Blocks until the coprocessor buffer is empty, signalling that the
     /// coprocessor has completed all of the commands issued so far.
     pub fn block_until_idle(&mut self) -> Result<(), M, I, W> {
@@ -466,11 +466,11 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
 
 /// These methods are available only when working with a model that has a
 /// coprocessor error message memory space.
-impl<M, I, W> EVECoprocessor<M, I, W>
+impl<M, I, W> Coprocessor<M, I, W>
 where
     M: Model + crate::models::WithCommandErrMem,
     I: Interface,
-    W: EVECoprocessorWaiter<M, I>,
+    W: CoprocessorWaiter<M, I>,
 {
     /// Returns the fault message currently available in the EVE coprocessor's
     /// fault message memory space.
@@ -500,19 +500,19 @@ where
 }
 
 // This type is used to create a zero-cost token representing codepaths in
-// the EVECoprocessor type where the stream is stopped, to help ensure correct
+// the Coprocessor type where the stream is stopped, to help ensure correct
 // discipline around which functions expect to be called with the stream
 // deactivated. It's an empty struct because its is only present for the
 // type checker, not relevant at runtime.
 struct StoppedStream;
 
-impl<M, I, W> crate::display_list::Builder for EVECoprocessor<M, I, W>
+impl<M, I, W> crate::display_list::Builder for Coprocessor<M, I, W>
 where
     M: Model,
     I: Interface,
-    W: EVECoprocessorWaiter<M, I>,
+    W: CoprocessorWaiter<M, I>,
 {
-    type Error = EVECoprocessorError<I::Error, W::Error>;
+    type Error = CoprocessorError<I::Error, W::Error>;
 
     fn append_raw_command(&mut self, raw: u32) -> core::result::Result<(), Self::Error> {
         self.append_raw_word(raw)
@@ -527,7 +527,7 @@ where
 }
 
 #[derive(Debug)]
-pub enum EVECoprocessorError<IErr, WErr> {
+pub enum CoprocessorError<IErr, WErr> {
     Interface(IErr),
     Waiter(WErr),
     Fault,
@@ -589,7 +589,7 @@ impl FaultMessageRaw for [u8; 128] {
 /// the only implementation available directly in this crate is one that
 /// busy-polls the register that tracks the buffer usage, because interaction
 /// with interrupts is always system-specific.
-pub trait EVECoprocessorWaiter<M: Model, I: Interface> {
+pub trait CoprocessorWaiter<M: Model, I: Interface> {
     type Error;
 
     fn wait_for_space(
@@ -628,7 +628,7 @@ impl<M: Model, I: Interface> PollingCoprocessorWaiter<M, I> {
     }
 }
 
-impl<M: Model, I: Interface> EVECoprocessorWaiter<M, I> for PollingCoprocessorWaiter<M, I> {
+impl<M: Model, I: Interface> CoprocessorWaiter<M, I> for PollingCoprocessorWaiter<M, I> {
     type Error = I::Error;
 
     fn wait_for_space(
@@ -675,11 +675,8 @@ mod tests {
 
     fn test_obj<F: FnOnce(&mut MockInterface)>(
         setup: F,
-    ) -> EVECoprocessor<
-        Exhaustive,
-        MockInterface,
-        PollingCoprocessorWaiter<Exhaustive, MockInterface>,
-    > {
+    ) -> Coprocessor<Exhaustive, MockInterface, PollingCoprocessorWaiter<Exhaustive, MockInterface>>
+    {
         let mut interface = MockInterface::new();
         setup(&mut interface);
         unwrap_copro(Exhaustive::new(interface).coprocessor_polling())
@@ -689,13 +686,13 @@ mod tests {
         match v {
             Ok(v) => v,
             Err(err) => match err {
-                EVECoprocessorError::Interface(err) => {
+                CoprocessorError::Interface(err) => {
                     std::panic!("interface error: {:?}", err);
                 }
-                EVECoprocessorError::Waiter(_) => {
+                CoprocessorError::Waiter(_) => {
                     std::panic!("waiter error");
                 }
-                EVECoprocessorError::Fault => {
+                CoprocessorError::Fault => {
                     std::panic!("coprocessor fault");
                 }
             },

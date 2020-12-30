@@ -231,13 +231,13 @@ fn main() {
     match cp.block_until_idle() {
         Ok(_) => {}
         Err(err) => match err {
-            evegfx::commands::EVECoprocessorError::Interface(err) => {
+            evegfx::commands::CoprocessorError::Interface(err) => {
                 panic!("interface error: {:?}", err);
             }
-            evegfx::commands::EVECoprocessorError::Waiter(err) => {
+            evegfx::commands::CoprocessorError::Waiter(err) => {
                 panic!("waiter error: {:?}", err);
             }
-            evegfx::commands::EVECoprocessorError::Fault => {
+            evegfx::commands::CoprocessorError::Fault => {
                 println!("Fetching the coprocessor fault message...");
                 let fault_msg_raw = cp.coprocessor_fault_msg().unwrap();
                 let fault_msg = std::str::from_utf8(fault_msg_raw.as_bytes()).unwrap();
@@ -383,13 +383,13 @@ impl<W: Interface> Interface for LogInterface<W> {
     }
 }
 
-struct LogWaiter<M: Model, I: Interface, W: evegfx::commands::EVECoprocessorWaiter<M, I>> {
+struct LogWaiter<M: Model, I: Interface, W: evegfx::commands::CoprocessorWaiter<M, I>> {
     w: W,
     _ei: core::marker::PhantomData<I>,
     _m: core::marker::PhantomData<M>,
 }
 
-impl<M: Model, I: Interface, W: evegfx::commands::EVECoprocessorWaiter<M, I>> LogWaiter<M, I, W> {
+impl<M: Model, I: Interface, W: evegfx::commands::CoprocessorWaiter<M, I>> LogWaiter<M, I, W> {
     fn new(wrapped: W) -> Self {
         Self {
             w: wrapped,
@@ -399,8 +399,8 @@ impl<M: Model, I: Interface, W: evegfx::commands::EVECoprocessorWaiter<M, I>> Lo
     }
 }
 
-impl<M: Model, I: Interface, W: evegfx::commands::EVECoprocessorWaiter<M, I>>
-    evegfx::commands::EVECoprocessorWaiter<M, I> for LogWaiter<M, I, W>
+impl<M: Model, I: Interface, W: evegfx::commands::CoprocessorWaiter<M, I>>
+    evegfx::commands::CoprocessorWaiter<M, I> for LogWaiter<M, I, W>
 {
     type Error = W::Error;
 
