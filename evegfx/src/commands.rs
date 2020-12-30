@@ -391,12 +391,28 @@ impl<M: Model, I: Interface, W: EVECoprocessorWaiter<M, I>> EVECoprocessor<M, I,
     ) -> Result<(), M, I, W> {
         self.write_stream(28, |cp| {
             cp.write_to_buffer(0xFFFFFF0D)?;
-            cp.write_to_buffer(rect.x as u32)?;
-            cp.write_to_buffer(rect.y as u32)?;
-            cp.write_to_buffer(rect.w as u32)?;
-            cp.write_to_buffer(rect.h as u32)?;
-            cp.write_to_buffer(font.to_raw() as u32)?;
-            cp.write_to_buffer(maybe_opt_format(options.to_raw(), &msg))
+            cp.write_to_buffer(rect.x as u32 | ((rect.y as u32) << 16))?;
+            cp.write_to_buffer(rect.w as u32 | ((rect.h as u32) << 16))?;
+            let font_raw = font.to_raw() as u32;
+            let opts_raw = maybe_opt_format(options.to_raw(), &msg);
+            cp.write_to_buffer(font_raw | (opts_raw << 16))
+        })?;
+        self.write_fmt_message(&msg)
+    }
+
+    pub fn draw_text(
+        &mut self,
+        pos: crate::graphics::WidgetPos,
+        msg: crate::strfmt::Message<M::MainMem>,
+        font: options::FontRef,
+        options: options::Text,
+    ) -> Result<(), M, I, W> {
+        self.write_stream(28, |cp| {
+            cp.write_to_buffer(0xFFFFFF0C)?;
+            cp.write_to_buffer(pos.x as u32 | ((pos.y as u32) << 16))?;
+            let font_raw = font.to_raw() as u32;
+            let opts_raw = maybe_opt_format(options.to_raw(), &msg);
+            cp.write_to_buffer(font_raw | (opts_raw << 16))
         })?;
         self.write_fmt_message(&msg)
     }
@@ -824,12 +840,9 @@ mod tests {
             MockInterfaceCall::ReadSpace(4092),
             MockInterfaceCall::StartStream,
             MockInterfaceCall::Write(0xffffff0d), // CMD_BUTTON
-            MockInterfaceCall::Write(10),         // the x coordinate
-            MockInterfaceCall::Write(20),         // the y coordinate
-            MockInterfaceCall::Write(100),        // the width
-            MockInterfaceCall::Write(12),         // the height
-            MockInterfaceCall::Write(31),         // the font index
-            MockInterfaceCall::Write(256),        // OPT_FLAT
+            MockInterfaceCall::Write(10 | 20 << 16), // the x and y coordinates
+            MockInterfaceCall::Write(100 | 12 << 16), // the width and height
+            MockInterfaceCall::Write(31 | 256 << 16), // the font index and opts
             MockInterfaceCall::Write(0x6c6c6568), // 'h' 'e' 'l' 'l' (interpreted as LE int)
             MockInterfaceCall::Write(0x6f77206f), // 'o' ' ' 'w' 'o' (interpreted as LE int)
             MockInterfaceCall::Write(0x21646c72), // 'r' 'l' 'd' '!'
@@ -859,12 +872,9 @@ mod tests {
             MockInterfaceCall::ReadSpace(4092),
             MockInterfaceCall::StartStream,
             MockInterfaceCall::Write(0xffffff0d), // CMD_BUTTON
-            MockInterfaceCall::Write(10),         // the x coordinate
-            MockInterfaceCall::Write(20),         // the y coordinate
-            MockInterfaceCall::Write(100),        // the width
-            MockInterfaceCall::Write(12),         // the height
-            MockInterfaceCall::Write(31),         // the font index
-            MockInterfaceCall::Write(4096 | 256), // OPT_FORMAT|OPT_FLAT
+            MockInterfaceCall::Write(10 | 20 << 16), // the x and y coordinates
+            MockInterfaceCall::Write(100 | 12 << 16), // the width and height
+            MockInterfaceCall::Write(31 | (4096 | 256) << 16), // the font index and opts
             MockInterfaceCall::Write(0x6c6c6568), // 'h' 'e' 'l' 'l' (interpreted as LE int)
             MockInterfaceCall::Write(0x7825206f), // 'o' ' ' '%' 'x' (interpreted as LE int)
             MockInterfaceCall::Write(0x00000021), // '!', null terminator and padding

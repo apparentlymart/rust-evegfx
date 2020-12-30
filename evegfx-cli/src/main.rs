@@ -164,13 +164,25 @@ fn main() {
         use evegfx::commands::options::Options;
         use evegfx::graphics::*;
         use evegfx::strfmt::Message;
-        cp.clear_color_rgb(evegfx::graphics::RGB { r: 0, g: 0, b: 127 })?;
+        cp.clear_color_rgb(evegfx::graphics::RGB { r: 0, g: 127, b: 0 })?;
         cp.clear_all()?;
         cp.draw_button(
-            WidgetRect::new(10, 20, 100, 12),
-            Message::new_literal(b"hello world!\0"),
-            options::FontRef::new_raw(31),
-            options::Button::new().style(options::WidgetStyle::Flat),
+            WidgetRect::new(10, 10, 200, 100),
+            evegfx::eve_format!("Hello!"),
+            options::FontRef::new_raw(23),
+            options::Button::new().style(options::WidgetStyle::ThreeD),
+        )?;
+        cp.draw_text(
+            WidgetPos::new(100, 140),
+            evegfx::eve_format!("hello %d!", 5),
+            options::FontRef::new_raw(18),
+            options::Text::new(),
+        )?;
+        cp.draw_text(
+            WidgetPos::new(100, 200),
+            evegfx::eve_format!("hello %d!", 5),
+            options::FontRef::new_raw(25),
+            options::Text::new(),
         )?;
         cp.display()
     })

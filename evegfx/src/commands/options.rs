@@ -80,6 +80,21 @@ impl Button {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Text(u32);
+
+impl Options for Text {
+    fn new() -> Self {
+        Self(0)
+    }
+}
+
+impl Text {
+    pub fn to_raw(self) -> u32 {
+        self.0
+    }
+}
+
 /// Rendering style (flat or 3D) for various widgets that can support these
 /// two rendering styles.
 #[repr(u32)]
