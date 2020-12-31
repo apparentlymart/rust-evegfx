@@ -239,10 +239,17 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
 /// use of these may wish to consider supplying a tailored waiter
 /// implementation that can avoid busy-waiting.
 impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
+    #[inline]
+    pub fn space_when_empty() -> u16 {
+        // Perhaps this will vary in future models, but it's always been
+        // consistent so far so we'll make this more complex only when needed.
+        4092
+    }
+
     /// Blocks until the coprocessor buffer is empty, signalling that the
     /// coprocessor has completed all of the commands issued so far.
     pub fn block_until_idle(&mut self) -> Result<(), M, I, W> {
-        self.ensure_space(4092)
+        self.ensure_space(Self::space_when_empty())
     }
 
     /// Blocks until EVE has finished scanning out the current frame. Callers
@@ -253,6 +260,44 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     pub fn block_until_video_scanout(&mut self) -> Result<(), M, I, W> {
         self.wait_video_scanout()?;
         self.block_until_idle()
+    }
+
+    /// Blocks until the coprocessor has compelted all of the commands issued
+    /// so far and then returns the value of the given system register.
+    ///
+    /// You can use this in situations where earlier coprocessor commands may
+    /// have modified the register value, in order to capture that result
+    /// at the correct time.
+    pub fn block_read_register(&mut self, reg: crate::registers::Register) -> Result<u32, M, I, W> {
+        let ptr = M::reg_ptr(reg);
+
+        self.write_stream(12, |cp| {
+            cp.write_to_buffer(0xFFFFFF19 as u32)?;
+            cp.write_to_buffer(ptr.to_raw())?;
+            cp.write_to_buffer(0xf0f0f0f0 as u32) // space for the result to be written
+        })?;
+
+        // This command has space allocated in it where the coprocessor will
+        // write the result, so we'll need to grab the current write pointer
+        // after we write this out and then wait for the value to appear.
+        let ptr_reg = crate::registers::Register::CMD_WRITE;
+        let stopped = self.stop_stream()?;
+        let write_addr = {
+            let ll = self.borrow_low_level(&stopped);
+            Self::interface_result(ll.rd32(M::reg_ptr(ptr_reg)))?
+        };
+
+        // wait for the coprocessor to catch up
+        self.ensure_space_stopped(&stopped, Self::space_when_empty())?;
+
+        let result = {
+            let result_ptr: Ptr<M::DisplayListMem> = Ptr::new(write_addr) - 4;
+            let ll = self.borrow_low_level(&stopped);
+            Self::interface_result(ll.rd32(result_ptr))
+        };
+
+        self.start_stream(stopped)?;
+        result
     }
 }
 
@@ -434,25 +479,34 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         // burst stream in this case, because the waiter will need to make
         // other calls against the EVE chip.
         let stopped = self.stop_stream()?;
-        {
-            let (ll, wait) = self.borrow_low_level_and_waiter(&stopped);
-            match wait.wait_for_space(ll, need) {
-                Ok(known_space) => {
-                    self.known_space = known_space;
-                }
-                Err(err) => {
-                    // We don't know how much space we have, so we'll set it
-                    // to zero to force calling the waiter again next time.
-                    self.known_space = 0;
+        self.ensure_space_stopped(&stopped, need)?;
+        self.start_stream(stopped)?;
+        Ok(())
+    }
 
-                    return Err(match err {
-                        WaiterError::Comm(err) => Error::Waiter(err),
-                        WaiterError::Fault => Error::Fault,
-                    });
-                }
+    // A version of `ensure_space` that assumes the stream is already stopped
+    // and will remain stopped after it returns.
+    fn ensure_space_stopped(&mut self, stopped: &StoppedStream, need: u16) -> Result<(), M, I, W> {
+        if self.known_space >= need {
+            return Ok(());
+        }
+
+        let (ll, wait) = self.borrow_low_level_and_waiter(&stopped);
+        match wait.wait_for_space(ll, need) {
+            Ok(known_space) => {
+                self.known_space = known_space;
+            }
+            Err(err) => {
+                // We don't know how much space we have, so we'll set it
+                // to zero to force calling the waiter again next time.
+                self.known_space = 0;
+
+                return Err(match err {
+                    WaiterError::Comm(err) => Error::Waiter(err),
+                    WaiterError::Fault => Error::Fault,
+                });
             }
         }
-        self.start_stream(stopped)?;
         Ok(())
     }
 

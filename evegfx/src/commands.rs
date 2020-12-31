@@ -335,6 +335,50 @@ mod tests {
     }
 
     #[test]
+    fn test_block_read_register() {
+        let mut cp = test_obj(|ei| {
+            // Make sure the function will see enough space to think
+            // that the coprocessor is always caught up.
+            ei.current_space = 4092;
+
+            // We must fake the REG_CMD_WRITE value for this command, because
+            // it expects to find it pointing to the end of the command it
+            // just wrote.
+            ei.reg_cmd_write_value = 12;
+
+            // We'll return something "interesting" at all other memory
+            // addresses, so we can test that this ends up getting returned
+            // as the result.
+            ei.other_read_value = 0xf33df4c3;
+        });
+
+        let result = unwrap_copro(cp.block_read_register(crate::registers::Register::HCYCLE));
+
+        let ei = unwrap_copro(cp.take_interface());
+        let got = ei.calls();
+        let want = vec![
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::Write(0xFFFFFF19), // CMD_REGREAD
+            MockInterfaceCall::Write(0x0030202c), // address of REG_HCYCLE
+            MockInterfaceCall::Write(0xf0f0f0f0), // placeholder data for result
+            MockInterfaceCall::StopStream,
+            MockInterfaceCall::ReadWritePtr(12), // Faked pointer to end of command
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::ReadOther(0x00300008, 0xf33df4c3), // Address of the result
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::StopStream,
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
+
+        // Our mock interface doesn't actually have a coprocessor to write a
+        // result into place, so we expect to get back the "other read value"
+        // configured above, which is the result of the ReadOther call asserted
+        // above.
+        debug_assert_eq!(result, 0xf33df4c3);
+    }
+
+    #[test]
     fn test_use_api_level_1() {
         let mut cp = test_obj(|_| {});
 
@@ -376,6 +420,8 @@ mod tests {
         read_addr: Option<u32>,
 
         pub(crate) current_space: u16,
+        pub(crate) reg_cmd_write_value: u32,
+        pub(crate) other_read_value: u32,
 
         // calls_ is the call log. Each call to a mock method appends one
         // entry to this vector, including any that fail.
@@ -385,6 +431,8 @@ mod tests {
     #[derive(Clone)]
     pub enum MockInterfaceCall {
         ReadSpace(u16),
+        ReadWritePtr(u32),
+        ReadOther(u32, u32),
         Write(u32),
         StartStream,
         StopStream,
@@ -397,6 +445,10 @@ mod tests {
         ) -> core::result::Result<(), core::fmt::Error> {
             match self {
                 MockInterfaceCall::ReadSpace(space) => write!(f, "ReadSpace({:#4?})", space),
+                MockInterfaceCall::ReadWritePtr(v) => write!(f, "ReadWritePtr({:#010x?})", v),
+                MockInterfaceCall::ReadOther(addr, v) => {
+                    write!(f, "ReadOther({:#010x?}, {:#x?})", addr, v)
+                }
                 MockInterfaceCall::Write(v) => write!(f, "Write({:#010x?})", v),
                 MockInterfaceCall::StartStream => write!(f, "StartStream"),
                 MockInterfaceCall::StopStream => write!(f, "StopStream"),
@@ -407,12 +459,15 @@ mod tests {
     impl MockInterface {
         const SPACE_ADDR: u32 = <Exhaustive as Model>::RegisterMem::BASE_ADDR + 0x574;
         const WRITE_ADDR: u32 = <Exhaustive as Model>::RegisterMem::BASE_ADDR + 0x578;
+        const WRITTEN_ADDR: u32 = <Exhaustive as Model>::RegisterMem::BASE_ADDR + 0xfc;
 
         pub fn new() -> Self {
             Self {
                 write_addr: None,
                 read_addr: None,
                 current_space: 0xffc,
+                reg_cmd_write_value: 0,
+                other_read_value: 0xffffffff,
                 calls_: Vec::new(),
             }
         }
@@ -501,17 +556,62 @@ mod tests {
         fn continue_read(&mut self, into: &mut [u8]) -> core::result::Result<(), Self::Error> {
             match self.read_addr {
                 Some(addr) => {
-                    if addr == Self::SPACE_ADDR {
-                        if into.len() != 2 {
-                            return Err(MockError("must read REG_CMDB_SPACE with rd16"));
+                    match addr {
+                        Self::SPACE_ADDR => {
+                            if into.len() != 2 {
+                                return Err(MockError("must read REG_CMDB_SPACE with rd16"));
+                            }
+                            self.calls_
+                                .push(MockInterfaceCall::ReadSpace(self.current_space));
+                            into[0] = (self.current_space & 0xff) as u8;
+                            into[1] = (self.current_space >> 8) as u8;
                         }
-                        self.calls_
-                            .push(MockInterfaceCall::ReadSpace(self.current_space));
-                        into[0] = (self.current_space & 0xff) as u8;
-                        into[1] = (self.current_space >> 8) as u8;
+                        Self::WRITTEN_ADDR => {
+                            if into.len() != 4 {
+                                return Err(MockError("must read REG_CMD_WRITE with rd32"));
+                            }
+                            self.calls_
+                                .push(MockInterfaceCall::ReadWritePtr(self.reg_cmd_write_value));
+                            into[0] = (self.reg_cmd_write_value) as u8;
+                            into[1] = (self.reg_cmd_write_value >> 8) as u8;
+                            into[2] = (self.reg_cmd_write_value >> 16) as u8;
+                            into[3] = (self.reg_cmd_write_value >> 24) as u8;
+                        }
+                        _ => {
+                            match into.len() {
+                                1 => {
+                                    self.calls_.push(MockInterfaceCall::ReadOther(
+                                        addr,
+                                        self.other_read_value & 0xff,
+                                    ));
+                                    into[0] = self.other_read_value as u8;
+                                }
+                                2 => {
+                                    self.calls_.push(MockInterfaceCall::ReadOther(
+                                        addr,
+                                        self.other_read_value & 0xffff,
+                                    ));
+                                    into[0] = (self.other_read_value) as u8;
+                                    into[1] = (self.other_read_value >> 8) as u8;
+                                }
+                                4 => {
+                                    self.calls_.push(MockInterfaceCall::ReadOther(
+                                        addr,
+                                        self.other_read_value,
+                                    ));
+                                    into[0] = (self.other_read_value) as u8;
+                                    into[1] = (self.other_read_value >> 8) as u8;
+                                    into[2] = (self.other_read_value >> 16) as u8;
+                                    into[3] = (self.other_read_value >> 24) as u8;
+                                }
+                                _ => {
+                                    return Err(MockError("unsupported read length in mock"));
+                                }
+                            }
+                            // We ignore all other writes because they aren't relevant
+                            // to our coprocessor testing.
+                        }
                     }
-                    // We ignore all other writes because they aren't relevant
-                    // to our coprocessor testing.
                     Ok(())
                 }
                 None => Err(MockError("continue_read without an active read")),
@@ -544,6 +644,20 @@ mod tests {
                 MockInterfaceCall::ReadSpace(self_space) => {
                     if let MockInterfaceCall::ReadSpace(other_space) = other {
                         *self_space == *other_space
+                    } else {
+                        false
+                    }
+                }
+                MockInterfaceCall::ReadWritePtr(self_v) => {
+                    if let MockInterfaceCall::ReadWritePtr(other_v) = other {
+                        *self_v == *other_v
+                    } else {
+                        false
+                    }
+                }
+                MockInterfaceCall::ReadOther(self_addr, self_v) => {
+                    if let MockInterfaceCall::ReadOther(other_addr, other_v) = other {
+                        *self_addr == *other_addr && *self_v == *other_v
                     } else {
                         false
                     }
