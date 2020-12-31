@@ -16,6 +16,8 @@ pub mod options;
 pub mod strfmt;
 pub mod waiter;
 
+mod command_word;
+
 #[doc(inline)]
 pub use coprocessor::{Coprocessor, Error, Result};
 

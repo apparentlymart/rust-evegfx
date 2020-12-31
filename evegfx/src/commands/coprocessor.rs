@@ -1,3 +1,4 @@
+use super::command_word::CommandWord;
 use super::strfmt;
 use crate::commands::options;
 use crate::commands::waiter::{PollingWaiter, Waiter, WaiterError};
@@ -63,17 +64,17 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     }
 
     pub fn show_testcard(&mut self) -> Result<(), M, I, W> {
-        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF61))
+        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF61 as u32))
     }
 
     pub fn show_manufacturer_logo(&mut self) -> Result<(), M, I, W> {
-        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF31))
+        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF31 as u32))
     }
 
     pub fn start_spinner(&mut self) -> Result<(), M, I, W> {
         // TODO: Make the spinner customizable.
         self.write_stream(20, |cp| {
-            cp.write_to_buffer(0xFFFFFF16)?;
+            cp.write_to_buffer(0xFFFFFF16 as u32)?;
             cp.write_to_buffer(1000)?;
             cp.write_to_buffer(1000)?;
             cp.write_to_buffer(0)?;
@@ -82,11 +83,11 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     }
 
     pub fn start_display_list(&mut self) -> Result<(), M, I, W> {
-        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF00))
+        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF00 as u32))
     }
 
     pub fn display_list_swap(&mut self) -> Result<(), M, I, W> {
-        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF01))
+        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF01 as u32))
     }
 
     pub fn draw_button<Rect: Into<crate::graphics::WidgetRect>>(
@@ -98,12 +99,12 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     ) -> Result<(), M, I, W> {
         let rect: crate::graphics::WidgetRect = rect.into();
         self.write_stream(28, |cp| {
-            cp.write_to_buffer(0xFFFFFF0D)?;
-            cp.write_to_buffer(rect.x as u32 | ((rect.y as u32) << 16))?;
-            cp.write_to_buffer(rect.w as u32 | ((rect.h as u32) << 16))?;
-            let font_raw = font.to_raw() as u32;
-            let opts_raw = maybe_opt_format(options.to_raw(), &msg);
-            cp.write_to_buffer(font_raw | (opts_raw << 16))
+            cp.write_to_buffer(0xFFFFFF0D as u32)?;
+            cp.write_to_buffer((rect.x, rect.y))?;
+            cp.write_to_buffer((rect.w, rect.h))?;
+            let font_raw = font.to_raw() as u16;
+            let opts_raw = maybe_opt_format(options.to_raw(), &msg) as u16;
+            cp.write_to_buffer((font_raw, opts_raw))
         })?;
         self.write_fmt_message(&msg)
     }
@@ -117,11 +118,11 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     ) -> Result<(), M, I, W> {
         let pos: crate::graphics::WidgetPos = pos.into();
         self.write_stream(28, |cp| {
-            cp.write_to_buffer(0xFFFFFF0C)?;
-            cp.write_to_buffer(pos.x as u32 | ((pos.y as u32) << 16))?;
-            let font_raw = font.to_raw() as u32;
-            let opts_raw = maybe_opt_format(options.to_raw(), &msg);
-            cp.write_to_buffer(font_raw | (opts_raw << 16))
+            cp.write_to_buffer(0xFFFFFF0C as u32)?;
+            cp.write_to_buffer((pos.x, pos.y))?;
+            let font_raw = font.to_raw() as u16;
+            let opts_raw = maybe_opt_format(options.to_raw(), &msg) as u16;
+            cp.write_to_buffer((font_raw, opts_raw))
         })?;
         self.write_fmt_message(&msg)
     }
@@ -136,13 +137,13 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
 
     pub fn wait_microseconds(&mut self, delay: u32) -> Result<(), M, I, W> {
         self.write_stream(8, |cp| {
-            cp.write_to_buffer(0xFFFFFF65)?;
+            cp.write_to_buffer(0xFFFFFF65 as u32)?;
             cp.write_to_buffer(delay)
         })
     }
 
     pub fn wait_video_scanout(&mut self) -> Result<(), M, I, W> {
-        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF42))
+        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF42 as u32))
     }
 }
 
@@ -375,7 +376,9 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     // there's sufficient space in the buffer, so the caller should call
     // ensure_space first to wait until there's enough space for the full
     // message it intends to write.
-    fn write_to_buffer(&mut self, v: u32) -> Result<(), M, I, W> {
+    fn write_to_buffer<V: Into<CommandWord>>(&mut self, v: V) -> Result<(), M, I, W> {
+        let v: CommandWord = v.into();
+        let v = v.to_raw();
         let data: [u8; 4] = [v as u8, (v >> 8) as u8, (v >> 16) as u8, (v >> 24) as u8];
         let ei = self.ll.borrow_interface();
         let result = Self::interface_result(ei.continue_write(&data));
@@ -394,32 +397,9 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     // padding at the end to ensure that the message ends on a four-byte
     // word boundary.
     fn write_bytes_chunked(&mut self, v: &[u8]) -> Result<(), M, I, W> {
-        const CHUNK_SIZE: usize = 4;
-        let mut chunk: [u8; CHUNK_SIZE] = [0; CHUNK_SIZE];
-        let mut remain = v;
-        while remain.len() > 0 {
-            let size = if remain.len() > CHUNK_SIZE {
-                CHUNK_SIZE
-            } else {
-                remain.len()
-            };
-            let padding = CHUNK_SIZE - size;
-            for i in 0..size {
-                chunk[i] = remain[i];
-            }
-            for i in 0..padding {
-                chunk[size + i] = 0;
-            }
-            remain = &remain[size..];
-
-            self.ensure_space(CHUNK_SIZE as u16)?;
-            let ei = self.ll.borrow_interface();
-            if self.known_space >= (CHUNK_SIZE as u16) {
-                self.known_space -= CHUNK_SIZE as u16;
-            } else {
-                self.known_space = 0;
-            }
-            Self::interface_result(ei.continue_write(&chunk))?;
+        for word in super::command_word::command_words_for_bytes(v) {
+            self.ensure_space(4)?;
+            self.write_to_buffer(word.to_raw())?;
         }
         Ok(())
     }
