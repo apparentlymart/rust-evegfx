@@ -7,7 +7,7 @@
 #![allow(unused_imports)]
 
 use evegfx::display_list::Builder;
-use evegfx::memory::MemoryRegion;
+use evegfx::memory::region::MemoryRegion;
 use evegfx::models::Model;
 use evegfx::{Interface, EVE};
 use serial_embedded_hal::{PortSettings, Serial};
