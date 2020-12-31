@@ -106,7 +106,7 @@ fn main() {
 
     //let mut eve = evegfx::BT815::new(eve_interface);
     let mut eve = EVE::new(evegfx::BT815, eve_interface);
-    eve.start_system_clock(evegfx::EVEClockSource::Internal, TIMINGS)
+    eve.start_system_clock(evegfx::init::EVEClockSource::Internal, TIMINGS)
         .unwrap();
     println!("Waiting for EVE boot...");
     let booted = eve.poll_for_boot(50).unwrap();
@@ -116,7 +116,7 @@ fn main() {
     }
 
     println!("Configuring video pins...");
-    eve.configure_video_pins(evegfx::EVERGBElectricalMode {
+    eve.configure_video_pins(evegfx::graphics_mode::EVERGBElectricalMode {
         channel_bits: (8, 8, 8),
         dither: false,
         pclk_spread: true,

@@ -26,8 +26,6 @@ pub mod models;
 /// interpolate strings already stored in the EVE RAM, via the `%s` verb, which
 /// Rust's own formatter doesn't have direct access to.
 pub use evegfx_macros::eve_format as format;
-pub use graphics_mode::{EVEGraphicsTimings, EVERGBElectricalMode};
-pub use init::EVEClockSource;
 
 // For more convenient use elsewhere in the crate, because we make a lot of
 // use of these internally even though they are not a significant part of

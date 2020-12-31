@@ -1,3 +1,5 @@
+//! Data types to represent geometry and colors for various graphics operations.
+
 mod color;
 mod pos;
 
