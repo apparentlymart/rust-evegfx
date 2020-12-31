@@ -156,6 +156,23 @@ mod tests {
     }
 
     #[test]
+    fn test_cold_start() {
+        let mut cp = test_obj(|_| {});
+
+        unwrap_copro(cp.cold_start());
+
+        let ei = unwrap_copro(cp.take_interface());
+        let got = ei.calls();
+        let want = vec![
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::Write(0xFFFFFF32), // CMD_COLDSTART
+            MockInterfaceCall::StopStream,
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
     fn test_new_display_list() {
         let mut cp = test_obj(|_| {});
 

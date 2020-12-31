@@ -97,6 +97,14 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         })
     }
 
+    /// Resets the coprocessor's state to the boot-time defaults before
+    /// continuing with later commands. For example, this discards the
+    /// currently-selected widget colors and reverts to the default color
+    /// scheme.
+    pub fn cold_start(&mut self) -> Result<(), M, I, W> {
+        self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF32 as u32))
+    }
+
     pub fn show_testcard(&mut self) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF61 as u32))
     }
