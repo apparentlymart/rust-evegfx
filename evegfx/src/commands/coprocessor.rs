@@ -131,6 +131,50 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         })
     }
 
+    /// Writes raw data from host memory into locations in the
+    /// directly-addressable part of the EVE memory space.
+    ///
+    /// You can provide the data as any type that can convert to an exact-size
+    /// iterator for `u8`, which includes slices of `u8` but you could also
+    /// supply other iterables in order to generate data progressively, rather
+    /// than buffering it all in memory. However, the result must always have
+    /// a length that can fit inside a `u32`, because that's the maximum size
+    /// supported by EVE.
+    ///
+    /// This is similar to writing memory with the
+    /// [`LowLevel`](crate::low_level::LowLevel) API, but having the coprocessor
+    /// do it means that you can synchronize memory writes with other actions
+    /// the coprocessor is taking, such as in conjunction with
+    /// `wait_video_scanout` to do writes synchronized with the framerate.
+    ///
+    /// Don't use this method to write over memory areas related to the
+    /// coprocessor ring buffer, because that will likely cause the internal
+    /// state of the `Coprocessor` object to become invalid.
+    pub fn write_memory<'a, IntoIter, R>(
+        &mut self,
+        to: Ptr<R>,
+        from: IntoIter,
+    ) -> Result<(), M, I, W>
+    where
+        IntoIter: core::iter::IntoIterator<Item = &'a u8>,
+        IntoIter::IntoIter: core::iter::Iterator<Item = &'a u8> + core::iter::ExactSizeIterator,
+        R: crate::memory::MemoryRegion + crate::memory::HostAccessible,
+    {
+        let ptr_raw = to.to_raw();
+        let iter = from.into_iter();
+        let len = iter.len() as u32;
+
+        // First we'll write out the fixed-size command "header"...
+        self.write_stream(12, |cp| {
+            cp.write_to_buffer(0xFFFFFF1A as u32)?;
+            cp.write_to_buffer(ptr_raw)?;
+            cp.write_to_buffer(len)
+        })?;
+
+        // ...and now we must write out the given bytes themselves.
+        self.write_bytes_chunked(iter)
+    }
+
     pub fn show_testcard(&mut self) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF61 as u32))
     }
@@ -534,8 +578,11 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     // Write a series of bytes into the output stream in chunks, with null
     // padding at the end to ensure that the message ends on a four-byte
     // word boundary.
-    fn write_bytes_chunked(&mut self, v: &[u8]) -> Result<(), M, I, W> {
-        for word in super::command_word::command_words_for_bytes(v) {
+    fn write_bytes_chunked<'a, Iter>(&mut self, v: Iter) -> Result<(), M, I, W>
+    where
+        Iter: core::iter::Iterator<Item = &'a u8> + core::iter::ExactSizeIterator,
+    {
+        for word in super::command_word::command_words_for_bytes_iter(v) {
             self.ensure_space(4)?;
             self.write_to_buffer(word.to_raw())?;
         }
@@ -547,7 +594,7 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         msg: &strfmt::Message<'_, '_, R>,
     ) -> Result<(), M, I, W> {
         use strfmt::Argument::*;
-        self.write_bytes_chunked(msg.fmt)?;
+        self.write_bytes_chunked(msg.fmt.into_iter())?;
         if let Some(args) = msg.args {
             let arg_space = (args.len() * 4) as u16;
             self.ensure_space(arg_space)?;

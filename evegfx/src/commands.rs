@@ -273,6 +273,29 @@ mod tests {
     }
 
     #[test]
+    fn test_write_memory() {
+        let mut cp = test_obj(|_| {});
+
+        let ptr = <Exhaustive as crate::models::Model>::MainMem::ptr(16);
+        unwrap_copro(cp.write_memory(ptr, b"hello world"));
+
+        let ei = unwrap_copro(cp.take_interface());
+        let got = ei.calls();
+        let want = vec![
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::Write(0xFFFFFF1A), // CMD_MEMWRITE
+            MockInterfaceCall::Write(16),         // the target address
+            MockInterfaceCall::Write(11),         // the length of the data in bytes
+            MockInterfaceCall::Write(0x6c6c6568), // 'h', 'e', 'l', 'l'
+            MockInterfaceCall::Write(0x6f77206f), // 'o', ' ', 'w', 'o'
+            MockInterfaceCall::Write(0x00646c72), // 'r', 'l', 'd' + '\0' padding byte
+            MockInterfaceCall::StopStream,
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
     fn test_draw_button_literal() {
         use options::Options as _;
         use strfmt::Message;

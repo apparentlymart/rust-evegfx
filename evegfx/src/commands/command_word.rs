@@ -43,33 +43,45 @@ impl From<(u8, u8, u8, u8)> for CommandWord {
     }
 }
 
-pub(crate) fn command_words_for_bytes<'a>(bytes: &'a [u8]) -> ByteToCommandIter<'a> {
-    ByteToCommandIter { remain: bytes }
+pub(crate) fn command_words_for_bytes_iter<'a, Iter>(iter: Iter) -> ByteToCommandIter<'a, Iter>
+where
+    Iter: core::iter::Iterator<Item = &'a u8> + core::iter::ExactSizeIterator,
+{
+    ByteToCommandIter { wrapped: iter }
 }
 
-pub(crate) struct ByteToCommandIter<'a> {
-    remain: &'a [u8],
+pub(crate) struct ByteToCommandIter<'a, I>
+where
+    I: core::iter::Iterator<Item = &'a u8> + core::iter::ExactSizeIterator,
+{
+    wrapped: I,
 }
 
-impl<'a> Iterator for ByteToCommandIter<'a> {
+impl<'a, I> Iterator for ByteToCommandIter<'a, I>
+where
+    I: core::iter::Iterator<Item = &'a u8> + core::iter::ExactSizeIterator,
+{
     type Item = CommandWord;
 
     fn next(&mut self) -> core::option::Option<Self::Item> {
         const SIZE: usize = core::mem::size_of::<u32>();
 
         let mut raw: u32 = 0;
-        let mut len = self.remain.len();
-        if len == 0 {
-            return None;
+        for i in 0..SIZE {
+            match self.wrapped.next() {
+                Some(byte) => {
+                    raw = raw | ((*byte as u32) << (i * 8));
+                }
+                None => {
+                    if i == 0 {
+                        return None;
+                    } else {
+                        break;
+                    }
+                }
+            }
         }
-        if len > SIZE {
-            len = SIZE;
-        }
-        for i in 0..len {
-            raw = raw | ((self.remain[i] as u32) << (i * 8));
-        }
-        self.remain = &self.remain[len..];
-        Some(CommandWord(raw))
+        return Some(CommandWord(raw));
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -78,22 +90,41 @@ impl<'a> Iterator for ByteToCommandIter<'a> {
     }
 }
 
-impl<'a> ExactSizeIterator for ByteToCommandIter<'a> {
+impl<'a, I> ExactSizeIterator for ByteToCommandIter<'a, I>
+where
+    I: core::iter::Iterator<Item = &'a u8> + core::iter::ExactSizeIterator,
+{
     fn len(&self) -> usize {
         const SIZE: usize = core::mem::size_of::<u32>();
 
         // This is ceil(len / 4), accounting for us rounding up to include
         // alignment bytes.
-        (self.remain.len() + (SIZE - 1)) / SIZE
+        (self.wrapped.len() + (SIZE - 1)) / SIZE
     }
 }
 
-impl<'a> core::iter::FusedIterator for ByteToCommandIter<'a> {}
+/// A ByteToCommandIter is fused if the wrapped iterator is also fused.
+impl<'a, I> core::iter::FusedIterator for ByteToCommandIter<'a, I> where
+    I: core::iter::Iterator<Item = &'a u8>
+        + core::iter::ExactSizeIterator
+        + core::iter::FusedIterator
+{
+}
 
 #[cfg(test)]
 mod tests {
     extern crate std;
     use super::*;
+
+    pub(crate) fn command_words_for_bytes<'a, IntoIter>(
+        bytes: IntoIter,
+    ) -> ByteToCommandIter<'a, IntoIter::IntoIter>
+    where
+        IntoIter: core::iter::IntoIterator<Item = &'a u8>,
+        IntoIter::IntoIter: core::iter::Iterator<Item = &'a u8> + core::iter::ExactSizeIterator,
+    {
+        command_words_for_bytes_iter(bytes.into_iter())
+    }
 
     #[test]
     fn test_byte_to_command_iter_exact() {
