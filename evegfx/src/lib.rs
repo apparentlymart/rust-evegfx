@@ -1,6 +1,5 @@
 #![no_std]
 
-pub mod color;
 pub mod commands;
 pub mod display_list;
 pub mod graphics;
