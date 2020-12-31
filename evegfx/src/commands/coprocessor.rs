@@ -485,6 +485,53 @@ where
     }
 }
 
+/// These methods are available only when working with a model that allows
+/// _selecting_ coprocessor API level 1.
+///
+/// That doesn't include the BT815 and BT816 models: even though they do
+/// support the API now referred to as API level 1, they don't support
+/// _selecting_ that version because the idea of API levels was introduced
+/// only with the BT817 and BT818 models.
+impl<M, I, W> Coprocessor<M, I, W>
+where
+    M: Model + crate::models::WithCommandErrMem,
+    I: Interface,
+    W: Waiter<M, I>,
+{
+    /// On models that support multiple API levels, this selects API level 1
+    /// which aims to be backward-compatible with the BT815 and BT816 models.
+    pub fn use_api_level_1(&mut self) -> Result<(), M, I, W> {
+        self.write_stream(8, |cp| {
+            cp.write_to_buffer(0xFFFFFF63 as u32)?;
+            cp.write_to_buffer(1 as u32)
+        })
+    }
+}
+
+/// These methods are available only when working with a model that allows
+/// _selecting_ coprocessor API level 2.
+impl<M, I, W> Coprocessor<M, I, W>
+where
+    M: Model + crate::models::WithCommandErrMem,
+    I: Interface,
+    W: Waiter<M, I>,
+{
+    /// On models that support multiple API levels, this selects API level 1
+    /// which aims to be backward-compatible with the BT815 and BT816 models.
+    ///
+    /// There is no type-system-level enforcement that API level 2 is enabled
+    /// before using API level 2 features, as a measure of pragmatism to
+    /// avoid making the typestates of `Coprocessor` even more complex than
+    /// they already are. If you try to use API level 2 features without
+    /// first calling this method then the resulting behavior is undefined.
+    pub fn use_api_level_2(&mut self) -> Result<(), M, I, W> {
+        self.write_stream(8, |cp| {
+            cp.write_to_buffer(0xFFFFFF63 as u32)?;
+            cp.write_to_buffer(2 as u32)
+        })
+    }
+}
+
 /// Error type for coprocessor operations.
 ///
 /// This distinguishes between errors from the underlying interface to the

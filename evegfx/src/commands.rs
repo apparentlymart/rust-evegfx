@@ -244,6 +244,42 @@ mod tests {
         debug_assert_eq!(&got[..], &want[..]);
     }
 
+    #[test]
+    fn test_use_api_level_1() {
+        let mut cp = test_obj(|_| {});
+
+        unwrap_copro(cp.use_api_level_1());
+
+        let ei = unwrap_copro(cp.take_interface());
+        let got = ei.calls();
+        let want = vec![
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::Write(0xFFFFFF63), // CMD_APILEVEL
+            MockInterfaceCall::Write(1),          // the version selection
+            MockInterfaceCall::StopStream,
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
+    fn test_use_api_level_2() {
+        let mut cp = test_obj(|_| {});
+
+        unwrap_copro(cp.use_api_level_2());
+
+        let ei = unwrap_copro(cp.take_interface());
+        let got = ei.calls();
+        let want = vec![
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::Write(0xFFFFFF63), // CMD_APILEVEL
+            MockInterfaceCall::Write(2),          // the version selection
+            MockInterfaceCall::StopStream,
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
+    }
+
     /// A test double for `trait Interface`, available only in test mode.
     pub struct MockInterface {
         write_addr: Option<u32>,

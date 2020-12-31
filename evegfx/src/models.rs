@@ -48,6 +48,21 @@ pub trait WithCommandErrMem: Model {
     type CommandErrMem: memory::CommandErrMem;
 }
 
+/// Implemented by model types that support _selecting_ coprocessor API level 1.
+///
+/// This is not implemented by models that predate the concept of API levels
+/// and thus only implement API level 1 implicitly. It's only for models that
+/// can actually respond to the `CMD_APILEVEL` coprocessor command with
+/// the value 1.
+pub trait WithCoprocessorAPILevel1: Model {}
+
+/// Implemented by model types that support _selecting_ coprocessor API level 2.
+///
+/// This trait declares both that the model supports the `CMD_APILEVEL` command
+/// for selecting an API level _and_ that it accepts the value 2 to activate
+/// the API level 2 features.
+pub trait WithCoprocessorAPILevel2: Model {}
+
 pub(crate) mod testing {
     use super::*;
     use crate::memory;
@@ -69,6 +84,9 @@ pub(crate) mod testing {
     impl WithCommandErrMem for Exhaustive {
         type CommandErrMem = CommandErrMem;
     }
+
+    impl WithCoprocessorAPILevel1 for Exhaustive {}
+    impl WithCoprocessorAPILevel2 for Exhaustive {}
 
     #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub(crate) enum MainMem {}
