@@ -1,3 +1,5 @@
+//! Representations of display list commands.
+
 use crate::graphics::{Vertex2F, Vertex2II, RGB, RGBA};
 use core::convert::TryFrom;
 use core::fmt::Debug;

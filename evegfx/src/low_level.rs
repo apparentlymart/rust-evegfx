@@ -1,3 +1,6 @@
+//! Control of an EVE chip at the level of directly accessing its memory-mapped
+//! peripherals.
+
 pub(crate) mod host_commands;
 pub(crate) mod registers;
 

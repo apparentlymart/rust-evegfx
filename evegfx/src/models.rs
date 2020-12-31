@@ -1,3 +1,6 @@
+//! Descriptions of specific EVE models, used to handle some differences between
+//! the different generations.
+
 pub mod bt815;
 
 use crate::memory;
