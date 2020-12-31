@@ -4,6 +4,7 @@ use crate::commands::options;
 use crate::commands::waiter::{PollingWaiter, Waiter, WaiterError};
 use crate::interface::Interface;
 use crate::low_level::LowLevel;
+use crate::memory::{Ptr, Slice};
 use crate::models::Model;
 use crate::registers::Register;
 
@@ -103,6 +104,31 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     /// scheme.
     pub fn cold_start(&mut self) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF32 as u32))
+    }
+
+    /// Reads a slice of display list command bytes from a location in the main
+    /// memory space.
+    ///
+    /// You can use this, for example, to keep various pre-built display list
+    /// sequences prepared in the main EVE RAM and then efficiently retrieve
+    /// them into display list memory without having to re-transmit them
+    /// from host CPU to EVE. However, these commands do ultimately still
+    /// take real space in the display list memory after the command completes.
+    ///
+    /// The bounds of the given slice must both be addresses that are a
+    /// multiple of four, to respect the required memory alignment.
+    pub fn append_display_list_from_main_mem<S: Into<Slice<M::MainMem>>>(
+        &mut self,
+        slice: S,
+    ) -> Result<(), M, I, W> {
+        let slice: Slice<M::MainMem> = slice.into();
+        let start = slice.start().to_raw();
+        let count = slice.len();
+        self.write_stream(12, |cp| {
+            cp.write_to_buffer(0xFFFFFF1E as u32)?;
+            cp.write_to_buffer(start)?;
+            cp.write_to_buffer(count)
+        })
     }
 
     pub fn show_testcard(&mut self) -> Result<(), M, I, W> {

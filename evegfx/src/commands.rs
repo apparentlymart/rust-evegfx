@@ -173,6 +173,27 @@ mod tests {
     }
 
     #[test]
+    fn test_append_display_list_from_main_mem() {
+        let mut cp = test_obj(|_| {});
+
+        unwrap_copro(cp.append_display_list_from_main_mem(
+            crate::memory::Ptr::new(16)..crate::memory::Ptr::new(24),
+        ));
+
+        let ei = unwrap_copro(cp.take_interface());
+        let got = ei.calls();
+        let want = vec![
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::Write(0xFFFFFF1E), // CMD_APPEND
+            MockInterfaceCall::Write(16),         // Start address
+            MockInterfaceCall::Write(8),          // Number of bytes to copy
+            MockInterfaceCall::StopStream,
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
     fn test_new_display_list() {
         let mut cp = test_obj(|_| {});
 

@@ -9,6 +9,14 @@ pub struct Slice<R: MemoryRegion> {
 }
 
 impl<R: MemoryRegion> Slice<R> {
+    pub fn start(&self) -> Ptr<R> {
+        self.start_
+    }
+
+    pub fn end(&self) -> Ptr<R> {
+        self.end_
+    }
+
     pub fn len(&self) -> u32 {
         self.end_.addr - self.start_.addr
     }
