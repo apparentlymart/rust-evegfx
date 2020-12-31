@@ -63,6 +63,40 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         self.display_list_swap()
     }
 
+    /// Wait for at least the given delay and then have the coprocessor trigger
+    /// the EVE interrupt `CMDFLAG`.
+    ///
+    /// In a system that's able to respond to interrupts from the EVE chip,
+    /// you can use this to get a proactive notification when the coprocessor
+    /// reaches a particular point in the command stream, such as if you are
+    /// waiting for a particular command to be run before taking some other
+    /// action that isn't controlled by the EVE coprocessor but must still be
+    /// synchronized with it.
+    ///
+    /// Use a duration of zero (i.e. `Duration::from_millis(0)` or similar)
+    /// to have the coprocessor fire the interrupt immediately on decoding
+    /// this command, without any extra delay.
+    ///
+    /// If you use a delay of more than 4,294,967 seconds then the delay
+    /// sent to the EVE chip will saturate at that amount of seconds, due
+    /// to the physical constraint on number of bits available to express
+    /// the precision in the protocol.
+    pub fn trigger_cmdflag_interrupt(
+        &mut self,
+        delay: core::time::Duration,
+    ) -> Result<(), M, I, W> {
+        self.write_stream(8, |cp| {
+            let delay = delay.as_millis();
+            let delay = if delay > (core::u32::MAX as u128) {
+                core::u32::MAX
+            } else {
+                delay as u32
+            };
+            cp.write_to_buffer(0xFFFFFF02 as u32)?;
+            cp.write_to_buffer(delay)
+        })
+    }
+
     pub fn show_testcard(&mut self) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF61 as u32))
     }

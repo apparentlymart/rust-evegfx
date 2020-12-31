@@ -138,6 +138,24 @@ mod tests {
     }
 
     #[test]
+    fn test_trigger_cmdflag_interrupt() {
+        let mut cp = test_obj(|_| {});
+
+        unwrap_copro(cp.trigger_cmdflag_interrupt(core::time::Duration::from_millis(500)));
+
+        let ei = unwrap_copro(cp.take_interface());
+        let got = ei.calls();
+        let want = vec![
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::Write(0xFFFFFF02), // CMD_INTERRUPT
+            MockInterfaceCall::Write(500),        // Wait 500ms first
+            MockInterfaceCall::StopStream,
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
     fn test_new_display_list() {
         let mut cp = test_obj(|_| {});
 
