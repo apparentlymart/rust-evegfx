@@ -104,6 +104,40 @@ mod tests {
     }
 
     #[test]
+    fn test_start_display_list() {
+        let mut cp = test_obj(|_| {});
+
+        unwrap_copro(cp.start_display_list());
+
+        let ei = unwrap_copro(cp.take_interface());
+        let got = ei.calls();
+        let want = vec![
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::Write(0xffffff00), // CMD_DLSTART
+            MockInterfaceCall::StopStream,
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
+    fn test_display_list_swap() {
+        let mut cp = test_obj(|_| {});
+
+        unwrap_copro(cp.display_list_swap());
+
+        let ei = unwrap_copro(cp.take_interface());
+        let got = ei.calls();
+        let want = vec![
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::Write(0xffffff01), // CMD_SWAP
+            MockInterfaceCall::StopStream,
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
     fn test_new_display_list() {
         let mut cp = test_obj(|_| {});
 

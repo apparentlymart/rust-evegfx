@@ -82,10 +82,26 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         })
     }
 
+    /// Sends just the coprocessor command to start a new display list, which
+    /// waits for the display list memory to become writable before executing
+    /// any subsequent commands and resets the pointer for new display list
+    /// commands back to the top of display list memory.
+    ///
+    /// It's generally more convenient to use
+    /// [`new_display_list`](Coprocessor::new_display_list), which
+    /// handles both starting the display list and swapping it to be visible
+    /// all in a single method call.
     pub fn start_display_list(&mut self) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF00 as u32))
     }
 
+    /// Sends just the coprocessor command to swap in the newly-populated
+    /// display list commands.
+    ///
+    /// It's generally more convenient to use
+    /// [`new_display_list`](Coprocessor::new_display_list), which
+    /// handles both starting the display list and swapping it to be visible
+    /// all in a single method call.
     pub fn display_list_swap(&mut self) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF01 as u32))
     }
