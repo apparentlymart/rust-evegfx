@@ -25,3 +25,12 @@ impl<R: MemoryRegion> Slice<R> {
         (self.start_.to_raw(), self.end_.to_raw())
     }
 }
+
+impl<R: MemoryRegion> core::convert::From<core::ops::Range<Ptr<R>>> for Slice<R> {
+    fn from(range: core::ops::Range<Ptr<R>>) -> Self {
+        Self {
+            start_: range.start,
+            end_: range.end,
+        }
+    }
+}
