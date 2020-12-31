@@ -5,14 +5,11 @@ pub mod commands;
 pub mod display_list;
 pub mod graphics;
 pub mod graphics_mode;
-pub mod host_commands;
 pub mod init;
 pub mod interface;
 pub mod low_level;
 pub mod memory;
 pub mod models;
-pub mod registers;
-pub mod strfmt;
 
 /// Constructs a [`Message`](crate::strfmt::Message) value for use with EVE
 /// coprocessor commands that support string formatting.
@@ -29,9 +26,14 @@ pub mod strfmt;
 /// formatting code in memory-constrained systems. The EVE formatter can also
 /// interpolate strings already stored in the EVE RAM, via the `%s` verb, which
 /// Rust's own formatter doesn't have direct access to.
-pub use evegfx_macros::eve_format;
+pub use evegfx_macros::eve_format as format;
 pub use graphics_mode::{EVEGraphicsTimings, EVERGBElectricalMode};
 pub use init::EVEClockSource;
+
+// For more convenient use elsewhere in the crate, because we make a lot of
+// use of these internally even though they are not a significant part of
+// the main public interface.
+pub(crate) use low_level::{host_commands, registers};
 
 /// An adapter trait binding our high-level API to the underlying hardware,
 /// such as to a platform-specific SPI peripheral.
@@ -162,7 +164,7 @@ impl<M: Model, I: Interface> EVE<M, I> {
             let mut builder = display_list::just_builder(&mut self.ll);
             f(&mut builder)?;
         }
-        let dlswap_ptr = M::reg_ptr(registers::EVERegister::DLSWAP);
+        let dlswap_ptr = M::reg_ptr(registers::Register::DLSWAP);
         self.ll.wr8(dlswap_ptr, 0b00000010)
     }
 

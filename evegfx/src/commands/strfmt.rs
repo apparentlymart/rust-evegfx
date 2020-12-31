@@ -1,10 +1,12 @@
+//! Interface to the coprocessor's string formatting features.
+
 use crate::memory::MainMem;
 
 /// A text message that might contain formatting sequences that correspond with
 /// given arguments.
 ///
 /// The main way to construct a `Message` is using the macro
-/// [`evegfx::eve_format!`](crate::eve_format), which understands the EVE
+/// [`evegfx::format!`](crate::format), which understands the EVE
 /// formatting syntax just enough to automatically infer the argument types
 /// and verify that the arguments are compatible with the format string.
 ///

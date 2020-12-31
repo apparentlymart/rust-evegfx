@@ -2,7 +2,7 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u16)]
 #[allow(non_camel_case_types)]
-pub enum EVERegister {
+pub enum Register {
     ADAPTIVE_FRAMERATE = 0x57c,
     CPURESET = 0x20,
     CSPREAD = 0x68,
@@ -32,7 +32,7 @@ pub enum EVERegister {
     VSYNC1 = 0x50,
 }
 
-impl EVERegister {
+impl Register {
     pub fn ptr<M: crate::models::Model>(self) -> crate::memory::Ptr<M::RegisterMem> {
         use crate::memory::MemoryRegion;
         M::RegisterMem::ptr(self as u32)
@@ -46,7 +46,7 @@ mod tests {
 
     #[test]
     fn test_ptr() {
-        assert_eq!(EVERegister::VSYNC1.ptr::<Exhaustive>().to_raw(), 0x302050);
-        assert_eq!(EVERegister::VSYNC1.ptr::<Exhaustive>().to_raw(), 0x302050);
+        assert_eq!(Register::VSYNC1.ptr::<Exhaustive>().to_raw(), 0x302050);
+        assert_eq!(Register::VSYNC1.ptr::<Exhaustive>().to_raw(), 0x302050);
     }
 }

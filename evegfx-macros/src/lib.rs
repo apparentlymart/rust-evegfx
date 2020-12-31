@@ -23,11 +23,14 @@ pub fn eve_format(input: TokenStream) -> TokenStream {
     let mut format_chars: Vec<u8> = Vec::with_capacity(fmt_src.len());
     let mut arg_elems: Punctuated<Expr, syn::Token![,]> = Punctuated::new();
 
-    let int_variant_path: ExprPath = syn::parse_str("::evegfx::strfmt::Argument::Int").unwrap();
-    let uint_variant_path: ExprPath = syn::parse_str("::evegfx::strfmt::Argument::UInt").unwrap();
-    let char_variant_path: ExprPath = syn::parse_str("::evegfx::strfmt::Argument::Char").unwrap();
+    let int_variant_path: ExprPath =
+        syn::parse_str("::evegfx::commands::strfmt::Argument::Int").unwrap();
+    let uint_variant_path: ExprPath =
+        syn::parse_str("::evegfx::commands::strfmt::Argument::UInt").unwrap();
+    let char_variant_path: ExprPath =
+        syn::parse_str("::evegfx::commands::strfmt::Argument::Char").unwrap();
     let string_variant_path: ExprPath =
-        syn::parse_str("::evegfx::strfmt::Argument::String").unwrap();
+        syn::parse_str("::evegfx::commands::strfmt::Argument::String").unwrap();
 
     let mut remain = fmt_src.clone();
     let mut next_arg = 0;
@@ -141,11 +144,11 @@ pub fn eve_format(input: TokenStream) -> TokenStream {
 
     if needs_fmt {
         quote!(
-            ::evegfx::strfmt::Message::new(#args)
+            ::evegfx::commands::strfmt::Message::new(#args)
         )
     } else {
         quote!(
-            ::evegfx::strfmt::Message::new_literal(#args)
+            ::evegfx::commands::strfmt::Message::new_literal(#args)
         )
     }
     .into()

@@ -1,9 +1,10 @@
+use super::strfmt;
 use crate::commands::options;
 use crate::commands::waiter::{PollingWaiter, Waiter, WaiterError};
 use crate::interface::Interface;
 use crate::low_level::LowLevel;
 use crate::models::Model;
-use crate::registers::EVERegister;
+use crate::registers::Register;
 
 /// The result type for coprocessor operations, where the error type is always
 /// [`Error`](Error).
@@ -91,7 +92,7 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     pub fn draw_button<Rect: Into<crate::graphics::WidgetRect>>(
         &mut self,
         rect: Rect,
-        msg: crate::strfmt::Message<M::MainMem>,
+        msg: strfmt::Message<M::MainMem>,
         font: options::FontRef,
         options: options::Button,
     ) -> Result<(), M, I, W> {
@@ -110,7 +111,7 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     pub fn draw_text<Pos: Into<crate::graphics::WidgetPos>>(
         &mut self,
         pos: Pos,
-        msg: crate::strfmt::Message<M::MainMem>,
+        msg: strfmt::Message<M::MainMem>,
         font: options::FontRef,
         options: options::Text,
     ) -> Result<(), M, I, W> {
@@ -184,8 +185,8 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
 
         // We'll pulse the reset signal for the coprocessor just to make sure
         // we're finding it in a known good state.
-        Self::interface_result(ll.wr8(ll.reg_ptr(EVERegister::CPURESET), 0b001))?;
-        Self::interface_result(ll.wr8(ll.reg_ptr(EVERegister::CPURESET), 0b000))?;
+        Self::interface_result(ll.wr8(ll.reg_ptr(Register::CPURESET), 0b001))?;
+        Self::interface_result(ll.wr8(ll.reg_ptr(Register::CPURESET), 0b000))?;
 
         let mut ret = Self {
             ll: ll,
@@ -271,7 +272,7 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     // Update our internal records to match the state of the remote chip.
     fn synchronize(&mut self, _stopped: &StoppedStream) -> Result<(), M, I, W> {
         let known_space =
-            Self::interface_result(self.ll.rd16(self.ll.reg_ptr(EVERegister::CMDB_SPACE)))?;
+            Self::interface_result(self.ll.rd16(self.ll.reg_ptr(Register::CMDB_SPACE)))?;
         self.known_space = known_space;
         Ok(())
     }
@@ -302,7 +303,7 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         // in the whole memory space, and so we can just keep writing and let
         // the chip worry about the wraparound for us.
         let ei = self.borrow_interface(&stopped);
-        Self::interface_result(ei.begin_write(M::reg_ptr(EVERegister::CMDB_WRITE).to_raw()))
+        Self::interface_result(ei.begin_write(M::reg_ptr(Register::CMDB_WRITE).to_raw()))
     }
 
     // `stop_stream` produces a StoppedStream token to represent that it has
@@ -326,7 +327,7 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         // We just assume that our stream will always be active here and
         // so we can just burst writes into it. It's the responsibility of
         // any function that takes actions other than writing into the FIFO
-        // to temporarily stop and then restart the stream.EVERegister
+        // to temporarily stop and then restart the stream.Register
         f(self)?;
 
         Ok(())
@@ -425,9 +426,9 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
 
     fn write_fmt_message<R: crate::memory::MainMem>(
         &mut self,
-        msg: &crate::strfmt::Message<'_, '_, R>,
+        msg: &strfmt::Message<'_, '_, R>,
     ) -> Result<(), M, I, W> {
-        use crate::strfmt::Argument::*;
+        use strfmt::Argument::*;
         self.write_bytes_chunked(msg.fmt)?;
         if let Some(args) = msg.args {
             let arg_space = (args.len() * 4) as u16;
@@ -615,7 +616,7 @@ where
 
 fn maybe_opt_format<R: crate::memory::MainMem>(
     given: u32,
-    msg: &crate::strfmt::Message<'_, '_, R>,
+    msg: &strfmt::Message<'_, '_, R>,
 ) -> u32 {
     const OPT_FORMAT: u32 = 4096;
     if msg.needs_format() {

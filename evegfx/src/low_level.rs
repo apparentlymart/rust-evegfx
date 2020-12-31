@@ -1,9 +1,17 @@
+pub(crate) mod host_commands;
+pub(crate) mod registers;
+
 use crate::display_list::DLCmd;
-use crate::host_commands::EVEHostCmd;
 use crate::interface::Interface;
 use crate::memory::{HostAccessible, MemoryRegion, Ptr};
 use crate::models::Model;
 use core::marker::PhantomData;
+
+#[doc(inline)]
+pub use registers::Register;
+
+#[doc(inline)]
+pub use host_commands::HostCmd;
 
 /// `LowLevel` is a low-level interface to EVE controllers which matches
 /// the primitive operations used in Programmers Guides for the various
@@ -99,11 +107,11 @@ impl<M: Model, I: Interface> LowLevel<M, I> {
         M::MainMem::ptr(offset)
     }
 
-    pub fn reg_ptr(&self, reg: crate::registers::EVERegister) -> Ptr<M::RegisterMem> {
+    pub fn reg_ptr(&self, reg: crate::registers::Register) -> Ptr<M::RegisterMem> {
         reg.ptr::<M>()
     }
 
-    pub fn host_command(&mut self, cmd: EVEHostCmd, a0: u8, a1: u8) -> Result<(), I::Error> {
+    pub fn host_command(&mut self, cmd: HostCmd, a0: u8, a1: u8) -> Result<(), I::Error> {
         self.raw.host_cmd(cmd.to_raw(), a0, a1)
     }
 
@@ -299,7 +307,7 @@ mod tests {
     #[test]
     fn test_host_command() {
         let mut eve = test_obj(|_| {});
-        eve.host_command(EVEHostCmd::ACTIVE, 0x23, 0x45).unwrap();
+        eve.host_command(HostCmd::ACTIVE, 0x23, 0x45).unwrap();
 
         let got_calls = eve.take_interface().calls();
         let want_calls = vec![MockInterfaceCall::Cmd(0x00, 0x23, 0x45)];

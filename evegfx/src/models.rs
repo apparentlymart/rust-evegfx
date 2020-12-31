@@ -29,7 +29,7 @@ pub trait Model: Sized + core::fmt::Debug {
         crate::EVE::new_internal(ei)
     }
 
-    fn reg_ptr(reg: crate::registers::EVERegister) -> crate::memory::Ptr<Self::RegisterMem> {
+    fn reg_ptr(reg: crate::registers::Register) -> crate::memory::Ptr<Self::RegisterMem> {
         reg.ptr::<Self>()
     }
 }

@@ -17,7 +17,7 @@
 use crate::interface::Interface;
 use crate::low_level::LowLevel;
 use crate::models::Model;
-use crate::registers::EVERegister;
+use crate::registers::Register;
 
 /// Knows how to block until the coprocessor ring buffer is at least empty
 /// enough to receive a forthcoming message.
@@ -79,7 +79,7 @@ impl<M: Model, I: Interface> Waiter<M, I> for PollingWaiter<M, I> {
         need: u16,
     ) -> core::result::Result<u16, WaiterError<Self::Error>> {
         loop {
-            let known_space = waiter_comm_result(ell.rd16(ell.reg_ptr(EVERegister::CMDB_SPACE)))?;
+            let known_space = waiter_comm_result(ell.rd16(ell.reg_ptr(Register::CMDB_SPACE)))?;
             if (known_space % 4) != 0 {
                 // An unaligned amount of space indicates a coprocessor fault.
                 return Err(WaiterError::Fault);

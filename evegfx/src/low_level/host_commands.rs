@@ -1,8 +1,13 @@
-/// Represents a register within the MEM_REG region on an EVE device.
+/// Represents a "host command".
+///
+/// Host commands are a low-level mechanism for controlling the basic
+/// functionality of the EVE chip, such as the system clock. This is not the
+/// same thing as a coprocessor command; those are represented by methods
+/// on [`Coprocessor`](crate::commands::Coprocessor).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 #[allow(non_camel_case_types)]
-pub enum EVEHostCmd {
+pub enum HostCmd {
     ACTIVE = 0x00,
     STANDBY = 0x41,
     SLEEP = 0x42,
@@ -15,9 +20,9 @@ pub enum EVEHostCmd {
     PIN_PD_STATE = 0x71,
 }
 
-impl EVEHostCmd {
+impl HostCmd {
     pub const fn from_raw(raw: u8) -> Option<Self> {
-        use EVEHostCmd::*;
+        use HostCmd::*;
         match raw {
             0x00 => Some(ACTIVE),
             0x41 => Some(STANDBY),

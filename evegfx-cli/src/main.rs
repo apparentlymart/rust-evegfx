@@ -41,7 +41,7 @@ fn main() {
     let ptr: evegfx::memory::Ptr<<evegfx::BT815 as Model>::MainMem> = evegfx::memory::Ptr::new(2);
     println!(
         "message is {:?}",
-        evegfx::eve_format!("hello %s %d %x %c", ptr, 4, 6, 'd')
+        evegfx::format!("hello %s %d %x %c", ptr, 4, 6, 'd')
     );
 
     let serial = Serial::new(
@@ -67,9 +67,9 @@ fn main() {
     //eve_interface.reset().unwrap();
     //let mut ll = evegfx::low_level::LowLevel::new(eve_interface);
     /*
-    ll.host_command(evegfx::host_commands::EVEHostCmd::ACTIVE, 0, 0)
+    ll.host_command(evegfx::host_commands::HostCmd::ACTIVE, 0, 0)
         .unwrap();
-    ll.host_command(evegfx::host_commands::EVEHostCmd::RST_PULSE, 0, 0)
+    ll.host_command(evegfx::host_commands::HostCmd::RST_PULSE, 0, 0)
         .unwrap();
     */
     /*
@@ -79,24 +79,24 @@ fn main() {
     }
     */
     /*
-    show_register(&mut ll, evegfx::registers::EVERegister::FREQUENCY);
-    show_register(&mut ll, evegfx::registers::EVERegister::VSYNC0);
-    show_register(&mut ll, evegfx::registers::EVERegister::VSYNC1);
-    show_register(&mut ll, evegfx::registers::EVERegister::VSIZE);
-    show_register(&mut ll, evegfx::registers::EVERegister::VOFFSET);
-    show_register(&mut ll, evegfx::registers::EVERegister::VCYCLE);
-    show_register(&mut ll, evegfx::registers::EVERegister::HSYNC0);
-    show_register(&mut ll, evegfx::registers::EVERegister::HSYNC1);
-    show_register(&mut ll, evegfx::registers::EVERegister::HSIZE);
-    show_register(&mut ll, evegfx::registers::EVERegister::HOFFSET);
-    show_register(&mut ll, evegfx::registers::EVERegister::HCYCLE);
-    show_register(&mut ll, evegfx::registers::EVERegister::PCLK_POL);
-    show_register(&mut ll, evegfx::registers::EVERegister::PCLK);
-    show_register(&mut ll, evegfx::registers::EVERegister::OUTBITS);
-    show_register(&mut ll, evegfx::registers::EVERegister::DITHER);
-    show_register(&mut ll, evegfx::registers::EVERegister::GPIO);
-    show_register(&mut ll, evegfx::registers::EVERegister::CSPREAD);
-    show_register(&mut ll, evegfx::registers::EVERegister::ADAPTIVE_FRAMERATE);
+    show_register(&mut ll, evegfx::registers::Register::FREQUENCY);
+    show_register(&mut ll, evegfx::registers::Register::VSYNC0);
+    show_register(&mut ll, evegfx::registers::Register::VSYNC1);
+    show_register(&mut ll, evegfx::registers::Register::VSIZE);
+    show_register(&mut ll, evegfx::registers::Register::VOFFSET);
+    show_register(&mut ll, evegfx::registers::Register::VCYCLE);
+    show_register(&mut ll, evegfx::registers::Register::HSYNC0);
+    show_register(&mut ll, evegfx::registers::Register::HSYNC1);
+    show_register(&mut ll, evegfx::registers::Register::HSIZE);
+    show_register(&mut ll, evegfx::registers::Register::HOFFSET);
+    show_register(&mut ll, evegfx::registers::Register::HCYCLE);
+    show_register(&mut ll, evegfx::registers::Register::PCLK_POL);
+    show_register(&mut ll, evegfx::registers::Register::PCLK);
+    show_register(&mut ll, evegfx::registers::Register::OUTBITS);
+    show_register(&mut ll, evegfx::registers::Register::DITHER);
+    show_register(&mut ll, evegfx::registers::Register::GPIO);
+    show_register(&mut ll, evegfx::registers::Register::CSPREAD);
+    show_register(&mut ll, evegfx::registers::Register::ADAPTIVE_FRAMERATE);
     */
     //show_current_dl(&mut ll);
     //return;
@@ -163,24 +163,23 @@ fn main() {
         use evegfx::commands::options;
         use evegfx::commands::options::Options;
         use evegfx::graphics::*;
-        use evegfx::strfmt::Message;
         cp.clear_color_rgb(evegfx::graphics::RGB { r: 0, g: 127, b: 0 })?;
         cp.clear_all()?;
         cp.draw_button(
             (10, 10, 200, 100),
-            evegfx::eve_format!("Hello!"),
+            evegfx::format!("Hello!"),
             options::FontRef::new_raw(23),
             options::Button::new().style(options::WidgetStyle::ThreeD),
         )?;
         cp.draw_text(
             (100, 140),
-            evegfx::eve_format!("hello %d!", 5),
+            evegfx::format!("hello %d!", 5),
             options::FontRef::new_raw(18),
             options::Text::new(),
         )?;
         cp.draw_text(
             (100, 200),
-            evegfx::eve_format!("hello %d!", 5),
+            evegfx::format!("hello %d!", 5),
             options::FontRef::new_raw(25),
             options::Text::new(),
         )?;
@@ -257,7 +256,7 @@ fn main() {
 
 fn show_register<M: Model, I: Interface>(
     ll: &mut evegfx::low_level::LowLevel<M, I>,
-    reg: evegfx::registers::EVERegister,
+    reg: evegfx::low_level::Register,
 ) {
     let v = ll.rd32(M::reg_ptr(reg)).unwrap_or(0xf33df4c3);
     println!("Register {:?} contains {:#010x}", reg, v);
@@ -369,7 +368,7 @@ impl<W: Interface> Interface for LogInterface<W> {
     }
 
     fn host_cmd(&mut self, cmd: u8, a0: u8, a1: u8) -> std::result::Result<(), Self::Error> {
-        match evegfx::host_commands::EVEHostCmd::from_raw(cmd) {
+        match evegfx::low_level::HostCmd::from_raw(cmd) {
             Some(cmd) => println!(
                 "- cmd(/*{:#04x?}*/ {:?}.into(), {:#04x}, {:#04x})",
                 cmd.to_raw(),

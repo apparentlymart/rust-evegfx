@@ -13,6 +13,7 @@
 
 pub(crate) mod coprocessor;
 pub mod options;
+pub mod strfmt;
 pub mod waiter;
 
 #[doc(inline)]
@@ -181,8 +182,8 @@ mod tests {
 
     #[test]
     fn test_draw_button_literal() {
-        use crate::strfmt::Message;
         use options::Options as _;
+        use strfmt::Message;
         let mut cp = test_obj(|_| {});
 
         unwrap_copro(cp.draw_button(
@@ -212,8 +213,8 @@ mod tests {
 
     #[test]
     fn test_draw_button_fmt() {
-        use crate::strfmt::{Argument, Message};
         use options::Options as _;
+        use strfmt::{Argument, Message};
         let mut cp = test_obj(|_| {});
 
         unwrap_copro(cp.draw_button(

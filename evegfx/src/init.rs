@@ -11,7 +11,7 @@ pub(crate) fn activate_system_clock<M: Model, I: Interface>(
     source: crate::init::EVEClockSource,
     mode: crate::graphics_mode::EVEGraphicsTimings,
 ) -> Result<(), I::Error> {
-    use crate::host_commands::EVEHostCmd::*;
+    use crate::host_commands::HostCmd::*;
 
     let ll = &mut eve.ll;
 
@@ -59,7 +59,7 @@ pub(crate) fn poll_for_boot<M: Model, I: Interface>(
     eve: &mut EVE<M, I>,
     poll_limit: u32,
 ) -> Result<bool, I::Error> {
-    use crate::registers::EVERegister::*;
+    use crate::registers::Register::*;
     let ll = &mut eve.ll;
     let mut poll = 0;
     while poll < poll_limit {
@@ -83,7 +83,7 @@ pub(crate) fn activate_pixel_clock<M: Model, I: Interface>(
     eve: &mut EVE<M, I>,
     c: crate::graphics_mode::EVEGraphicsTimings,
 ) -> Result<(), I::Error> {
-    use crate::registers::EVERegister::*;
+    use crate::registers::Register::*;
     const DIM_MASK: u16 = crate::graphics_mode::DIMENSION_MASK;
 
     let ll = &mut eve.ll;
@@ -115,7 +115,7 @@ pub(crate) fn configure_video_pins<M: Model, I: Interface>(
     _mode: crate::graphics_mode::EVERGBElectricalMode,
 ) -> Result<(), I::Error> {
     // TODO: Actually respect the mode settings. For now, just hard-coded.
-    use crate::registers::EVERegister::*;
+    use crate::registers::Register::*;
 
     let ll = &mut eve.ll;
 
