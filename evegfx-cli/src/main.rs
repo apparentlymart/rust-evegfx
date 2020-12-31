@@ -192,20 +192,21 @@ fn main() {
     println!("Entering main loop...");
     let mut ball_x: i16 = 1000;
     let mut ball_y: i16 = 1000;
-    let mut ball_dx: i16 = 10;
-    let mut ball_dy: i16 = 10;
-    const MAX_X: i16 = 10000;
-    const MAX_Y: i16 = 10000;
+    let mut ball_dx: i16 = 40;
+    let mut ball_dy: i16 = 40;
+    const MAX_X: i16 = 1280 * 16;
+    const MAX_Y: i16 = 720 * 16;
     loop {
-        cp.block_until_video_scanout().unwrap();
+        //cp.block_until_video_scanout().unwrap();
         cp.new_display_list(|cp| {
-            cp.clear_color_rgb(evegfx::color::EVEColorRGB { r: 0, g: 0, b: 127 })?;
+            cp.clear_color_rgb(evegfx::graphics::RGB { r: 0, g: 0, b: 127 })?;
             cp.clear_all()?;
             cp.begin(evegfx::display_list::GraphicsPrimitive::Points)?;
             cp.point_size(100)?;
-            cp.vertex2f(ball_x as u16, ball_y as u16)?;
+            cp.vertex_2f((ball_x, ball_y))?;
             cp.display()
-        }).unwrap();
+        })
+        .unwrap();
         ball_x += ball_dx;
         ball_y += ball_dy;
         if ball_x < 0 {
