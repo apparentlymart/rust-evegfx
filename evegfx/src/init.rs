@@ -1,5 +1,6 @@
+use crate::interface::Interface;
 use crate::models::Model;
-use crate::{Interface, EVE};
+use crate::EVE;
 
 pub enum EVEClockSource {
     Internal,

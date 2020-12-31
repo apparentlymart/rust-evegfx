@@ -7,9 +7,10 @@
 #![allow(unused_imports)]
 
 use evegfx::display_list::Builder;
+use evegfx::interface::Interface;
 use evegfx::memory::region::MemoryRegion;
 use evegfx::models::Model;
-use evegfx::{Interface, EVE};
+use evegfx::EVE;
 use serial_embedded_hal::{PortSettings, Serial};
 use spidriver::SPIDriver;
 use std::path::Path;

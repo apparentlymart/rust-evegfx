@@ -34,14 +34,11 @@ pub use init::EVEClockSource;
 // the main public interface.
 pub(crate) use low_level::{host_commands, registers};
 
-/// An adapter trait binding our high-level API to the underlying hardware,
-/// such as to a platform-specific SPI peripheral.
-#[doc(inline)]
-pub use interface::Interface;
-
 /// Model type representing the BT815 and BT816 chips.
 #[doc(inline)]
 pub use models::bt815::BT815;
+
+use interface::Interface;
 
 /// An alias for [`BT815`](BT815), because both models belong to the same
 /// generation and thus share a common API.
