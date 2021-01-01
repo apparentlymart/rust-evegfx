@@ -45,7 +45,7 @@ impl DLCmd {
         OpCode::BITMAP_HANDLE.build(bmp.0 as u32)
     }
 
-    pub const fn bitmap_layout(
+    pub const fn bitmap_layout_l(
         format: options::BitmapFormat,
         line_stride: u16,
         height: u16,
@@ -71,7 +71,7 @@ impl DLCmd {
         height: u16,
     ) -> (Self, Self) {
         (
-            Self::bitmap_layout(format, line_stride, height),
+            Self::bitmap_layout_l(format, line_stride, height),
             Self::bitmap_layout_h(line_stride, height),
         )
     }
@@ -83,7 +83,7 @@ impl DLCmd {
         )
     }
 
-    pub const fn bitmap_size(
+    pub const fn bitmap_size_l(
         width: u16,
         height: u16,
         filter: options::BitmapSizeFilter,
@@ -119,7 +119,7 @@ impl DLCmd {
         wrap_y: options::BitmapWrapMode,
     ) -> (Self, Self) {
         (
-            Self::bitmap_size(width, height, filter, wrap_x, wrap_y),
+            Self::bitmap_size_l(width, height, filter, wrap_x, wrap_y),
             Self::bitmap_size_h(width, height),
         )
     }
@@ -186,8 +186,72 @@ pub trait Builder {
         self.append_raw_command(cmd.as_raw())
     }
 
+    fn alpha_func(&mut self, func: options::TestFunc, ref_val: u8) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::alpha_func(func, ref_val))
+    }
+
     fn begin(&mut self, prim: options::GraphicsPrimitive) -> Result<(), Self::Error> {
         self.append_command(DLCmd::begin(prim))
+    }
+
+    fn bitmap_ext_format(&mut self, format: options::BitmapExtFormat) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_ext_format(format))
+    }
+
+    fn bitmap_handle(&mut self, bmp: options::BitmapHandle) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_handle(bmp))
+    }
+
+    fn bitmap_layout_l(
+        &mut self,
+        format: options::BitmapFormat,
+        line_stride: u16,
+        height: u16,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_layout_l(format, line_stride, height))
+    }
+
+    fn bitmap_layout_h(&mut self, line_stride: u16, height: u16) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_layout_h(line_stride, height))
+    }
+
+    fn bitmap_layout(
+        &mut self,
+        format: options::BitmapFormat,
+        line_stride: u16,
+        height: u16,
+    ) -> Result<(), Self::Error> {
+        let pair = DLCmd::bitmap_layout_pair(format, line_stride, height);
+        self.append_command(pair.0)?;
+        self.append_command(pair.1)
+    }
+
+    fn bitmap_size_l(
+        &mut self,
+        width: u16,
+        height: u16,
+        filter: options::BitmapSizeFilter,
+        wrap_x: options::BitmapWrapMode,
+        wrap_y: options::BitmapWrapMode,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_size_l(width, height, filter, wrap_x, wrap_y))
+    }
+
+    fn bitmap_size_h(&mut self, width: u16, height: u16) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_size_h(width, height))
+    }
+
+    fn bitmap_size(
+        &mut self,
+        width: u16,
+        height: u16,
+        filter: options::BitmapSizeFilter,
+        wrap_x: options::BitmapWrapMode,
+        wrap_y: options::BitmapWrapMode,
+    ) -> Result<(), Self::Error> {
+        let pair = DLCmd::bitmap_size_pair(width, height, filter, wrap_x, wrap_y);
+        self.append_command(pair.0)?;
+        self.append_command(pair.1)
     }
 
     fn clear(&mut self, color: bool, stencil: bool, tag: bool) -> Result<(), Self::Error> {
@@ -353,11 +417,11 @@ mod tests {
             DLCmd::from_raw(0x0500001f),
         );
         assert_eq!(
-            DLCmd::bitmap_layout(options::BitmapFormat::ARGB4, 255, 255),
+            DLCmd::bitmap_layout_l(options::BitmapFormat::ARGB4, 255, 255),
             DLCmd::from_raw(0x0731feff),
         );
         assert_eq!(
-            DLCmd::bitmap_layout(options::BitmapFormat::ARGB4, 1024, 768),
+            DLCmd::bitmap_layout_l(options::BitmapFormat::ARGB4, 1024, 768),
             DLCmd::from_raw(0x07300100),
         );
         assert_eq!(
@@ -377,7 +441,7 @@ mod tests {
             (DLCmd::from_raw(0x07300100), DLCmd::from_raw(0x28000004)),
         );
         assert_eq!(
-            DLCmd::bitmap_size(
+            DLCmd::bitmap_size_l(
                 255,
                 255,
                 options::BitmapSizeFilter::Nearest,
@@ -387,7 +451,7 @@ mod tests {
             DLCmd::from_raw(0x0801feff),
         );
         assert_eq!(
-            DLCmd::bitmap_size(
+            DLCmd::bitmap_size_l(
                 2048,
                 2048,
                 options::BitmapSizeFilter::Nearest,
@@ -397,7 +461,7 @@ mod tests {
             DLCmd::from_raw(0x08000000),
         );
         assert_eq!(
-            DLCmd::bitmap_size(
+            DLCmd::bitmap_size_l(
                 1024,
                 768,
                 options::BitmapSizeFilter::Nearest,
@@ -407,7 +471,7 @@ mod tests {
             DLCmd::from_raw(0x08000100),
         );
         assert_eq!(
-            DLCmd::bitmap_size(
+            DLCmd::bitmap_size_l(
                 1,
                 1,
                 options::BitmapSizeFilter::Bilinear,
@@ -417,7 +481,7 @@ mod tests {
             DLCmd::from_raw(0x08100201),
         );
         assert_eq!(
-            DLCmd::bitmap_size(
+            DLCmd::bitmap_size_l(
                 1,
                 1,
                 options::BitmapSizeFilter::Nearest,
@@ -427,7 +491,7 @@ mod tests {
             DLCmd::from_raw(0x08080201),
         );
         assert_eq!(
-            DLCmd::bitmap_size(
+            DLCmd::bitmap_size_l(
                 1,
                 1,
                 options::BitmapSizeFilter::Nearest,
