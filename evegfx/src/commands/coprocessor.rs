@@ -48,6 +48,13 @@ pub struct Coprocessor<M: Model, I: Interface, W: Waiter<M, I>> {
 /// some methods which _do_ block for the completion of certain operations,
 /// which all have the name prefix `block_` to indicate that.
 impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
+    /// Creates a pointer into the main memory ("RAM_G") area of the
+    /// EVE address space, with the given offset in bytes.
+    pub fn ram_ptr(&self, offset: u32) -> Ptr<M::MainMem> {
+        use crate::memory::MemoryRegion;
+        M::MainMem::ptr(offset)
+    }
+
     /// A convenience function for enclosing a series of coprocessor commands
     /// in `start_display_list` and `display_list_swap` commands.
     ///
@@ -55,6 +62,20 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     /// directly on the coprocessor object, but it's best to avoid any action
     /// that interacts with anything outside of the coprocessor. It _definitely_
     /// doesn't make sense to recursively call into `new_display_list` again.
+    ///
+    /// ```rust
+    /// # evegfx::interface::fake::coprocessor_example(|mut cp| {
+    /// cp.new_display_list(|cp| {
+    ///     use evegfx::display_list::Builder; // so trait methods are available
+    ///     cp.clear_all()?;
+    ///
+    ///     // ... other display list methods ...
+    ///
+    ///     // The display list should always end with the "display" command.
+    ///     cp.display()
+    /// }).unwrap();
+    /// # });
+    /// ```
     pub fn new_display_list<F>(&mut self, f: F) -> Result<(), M, I, W>
     where
         F: FnOnce(&mut Self) -> Result<(), M, I, W>,
@@ -140,6 +161,17 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     /// than buffering it all in memory. However, the result must always have
     /// a length that can fit inside a `u32`, because that's the maximum size
     /// supported by EVE.
+    ///
+    /// ```rust
+    /// # evegfx::interface::fake::coprocessor_example(|mut cp| {
+    /// // Write the byte string "hello world" to memory
+    /// // address zero.
+    /// cp.write_memory(
+    ///     cp.ram_ptr(0),
+    ///     b"hello world",
+    /// ).unwrap();
+    /// # });
+    /// ```
     ///
     /// This is similar to writing memory with the
     /// [`LowLevel`](crate::low_level::LowLevel) API, but having the coprocessor
@@ -314,6 +346,29 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         self.write_fmt_message(&msg)
     }
 
+    /// Direct the coprocessor to generate coprocessor commands to render a
+    /// text message.
+    ///
+    /// ```rust
+    /// # evegfx::interface::fake::coprocessor_example(|mut cp| {
+    /// use evegfx::commands::options;
+    /// use options::Options;
+    ///
+    /// let name_addr = cp.ram_ptr(0);
+    /// cp.write_memory(name_addr, b"world\0");
+    /// cp.draw_text(
+    ///     (100, 100),
+    ///     evegfx::format!("hello %s", name_addr),
+    ///     options::FontRef::new_raw(18),
+    ///     options::Text::new(),
+    /// );
+    /// # });
+    /// ```
+    ///
+    /// This command supports EVE-side text formatting, so the message is
+    /// provided as the result of the `evegfx::format!` macro, which
+    /// understands EVE's `printf`-like formatting syntax enough to provide
+    /// a strongly-typed interface.
     pub fn draw_text<Pos: Into<crate::graphics::WidgetPos>>(
         &mut self,
         pos: Pos,

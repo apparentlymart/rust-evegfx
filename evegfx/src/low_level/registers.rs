@@ -1,5 +1,7 @@
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+
 /// Represents a register within the MEM_REG region on an EVE device.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u16)]
 #[allow(non_camel_case_types)]
 pub enum Register {
@@ -36,6 +38,17 @@ impl Register {
     pub fn ptr<M: crate::models::Model>(self) -> crate::memory::Ptr<M::RegisterMem> {
         use crate::memory::MemoryRegion;
         M::RegisterMem::ptr(self as u32)
+    }
+
+    /// Returns the offset of the register address within the register memory.
+    pub fn offset(self) -> u32 {
+        self as u32
+    }
+
+    /// Returns the index of the register within the register file, as if the
+    /// register file were an array of `u32`.
+    pub fn index(self) -> usize {
+        self as usize / 4
     }
 }
 

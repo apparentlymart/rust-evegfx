@@ -2,6 +2,7 @@
 //! the different generations.
 
 pub mod bt815;
+pub mod fake;
 
 use crate::memory;
 

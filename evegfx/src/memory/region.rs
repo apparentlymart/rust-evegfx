@@ -33,6 +33,11 @@ pub trait MemoryRegion: core::marker::Sized + core::fmt::Debug + core::marker::C
             _region: PhantomData,
         }
     }
+
+    #[inline]
+    fn contains_addr(raw: u32) -> bool {
+        raw >= Self::BASE_ADDR && raw < (Self::BASE_ADDR + Self::LENGTH)
+    }
 }
 
 pub trait MainMem: MemoryRegion + HostAccessible {}
