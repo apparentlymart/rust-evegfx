@@ -1,9 +1,9 @@
 //! Representations of display list commands.
 
+pub mod options;
+
 use crate::graphics::{Vertex2F, Vertex2II, RGB, RGBA};
-use core::convert::TryFrom;
 use core::fmt::Debug;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 /// Represents an EVE display list command.
 #[derive(Copy, Clone, PartialEq)]
@@ -29,23 +29,27 @@ impl DLCmd {
         self.0
     }
 
-    pub const fn alpha_func(func: AlphaTestFunc, ref_val: u8) -> Self {
+    pub const fn alpha_func(func: options::TestFunc, ref_val: u8) -> Self {
         OpCode::ALPHA_FUNC.build((func as u32) << 8 | (ref_val as u32))
     }
 
-    pub const fn begin(prim: GraphicsPrimitive) -> Self {
+    pub const fn begin(prim: options::GraphicsPrimitive) -> Self {
         OpCode::BEGIN.build(prim as u32)
     }
 
-    pub const fn bitmap_ext_format(format: BitmapExtFormat) -> Self {
+    pub const fn bitmap_ext_format(format: options::BitmapExtFormat) -> Self {
         OpCode::BITMAP_EXT_FORMAT.build(format as u32)
     }
 
-    pub const fn bitmap_handle(bmp: BitmapHandle) -> Self {
+    pub const fn bitmap_handle(bmp: options::BitmapHandle) -> Self {
         OpCode::BITMAP_HANDLE.build(bmp.0 as u32)
     }
 
-    pub const fn bitmap_layout(format: BitmapFormat, line_stride: u16, height: u16) -> Self {
+    pub const fn bitmap_layout(
+        format: options::BitmapFormat,
+        line_stride: u16,
+        height: u16,
+    ) -> Self {
         OpCode::BITMAP_LAYOUT.build(
             (format as u32) << 19
                 | (line_stride as u32 & 0b1111111111) << 9
@@ -62,7 +66,7 @@ impl DLCmd {
     /// the bits in the `line_stride` and `height` fields. Write the two
     /// commands to consecutive positions in the display list.
     pub const fn bitmap_layout_pair(
-        format: BitmapFormat,
+        format: options::BitmapFormat,
         line_stride: u16,
         height: u16,
     ) -> (Self, Self) {
@@ -82,9 +86,9 @@ impl DLCmd {
     pub const fn bitmap_size(
         width: u16,
         height: u16,
-        filter: BitmapSizeFilter,
-        wrap_x: BitmapWrapMode,
-        wrap_y: BitmapWrapMode,
+        filter: options::BitmapSizeFilter,
+        wrap_x: options::BitmapWrapMode,
+        wrap_y: options::BitmapWrapMode,
     ) -> Self {
         let (p_width, p_height) = Self::physical_bitmap_size(width, height);
         OpCode::BITMAP_SIZE.build(
@@ -110,9 +114,9 @@ impl DLCmd {
     pub const fn bitmap_size_pair(
         width: u16,
         height: u16,
-        filter: BitmapSizeFilter,
-        wrap_x: BitmapWrapMode,
-        wrap_y: BitmapWrapMode,
+        filter: options::BitmapSizeFilter,
+        wrap_x: options::BitmapWrapMode,
+        wrap_y: options::BitmapWrapMode,
     ) -> (Self, Self) {
         (
             Self::bitmap_size(width, height, filter, wrap_x, wrap_y),
@@ -182,7 +186,7 @@ pub trait Builder {
         self.append_raw_command(cmd.as_raw())
     }
 
-    fn begin(&mut self, prim: GraphicsPrimitive) -> Result<(), Self::Error> {
+    fn begin(&mut self, prim: options::GraphicsPrimitive) -> Result<(), Self::Error> {
         self.append_command(DLCmd::begin(prim))
     }
 
@@ -302,196 +306,6 @@ impl OpCode {
     }
 }
 
-#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, PartialEq)]
-#[repr(u8)]
-pub enum GraphicsPrimitive {
-    Bitmaps = 1,
-    Points = 2,
-    Lines = 3,
-    LineStrip = 4,
-    EdgeStripR = 5,
-    EdgeStripL = 6,
-    EdgeStripA = 7,
-    EdgeStripB = 8,
-    Rects = 9,
-}
-
-#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, PartialEq)]
-#[repr(u8)]
-pub enum AlphaTestFunc {
-    Never = 0,
-    Less = 1,
-    LEqual = 2,
-    Greater = 3,
-    GEqual = 4,
-    Equal = 5,
-    NotEqual = 6,
-    Always = 7,
-}
-
-#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, PartialEq)]
-#[repr(u16)]
-pub enum BitmapExtFormat {
-    ARGB1555 = 0,
-    L1 = 1,
-    L4 = 2,
-    L8 = 3,
-    RGB332 = 4,
-    ARGB2 = 5,
-    ARGB4 = 6,
-    RGB565 = 7,
-    Text8x8 = 9,
-    TextVGA = 10,
-    Bargraph = 11,
-    Paletted565 = 14,
-    Paletted4444 = 15,
-    Paletted8 = 16,
-    L2 = 17,
-    CompressedRGBAASTC4x4KHR = 37808,
-    CompressedRGBAASTC5x4KHR = 37809,
-    CompressedRGBAASTC5x5KHR = 37810,
-    CompressedRGBAASTC6x5KHR = 37811,
-    CompressedRGBAASTC6x6KHR = 37812,
-    CompressedRGBAASTC8x5KHR = 37813,
-    CompressedRGBAASTC8x6KHR = 37814,
-    CompressedRGBAASTC8x8KHR = 37815,
-    CompressedRGBAASTC10x5KHR = 37816,
-    CompressedRGBAASTC10x6KHR = 37817,
-    CompressedRGBAASTC10x8KHR = 37818,
-    CompressedRGBAASTC10x10KHR = 37819,
-    CompressedRGBAASTC12x10KHR = 37820,
-    CompressedRGBAASTC12x12KHR = 37821,
-}
-
-#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, PartialEq)]
-#[repr(u8)]
-pub enum BitmapFormat {
-    ARGB1555 = 0,
-    L1 = 1,
-    L4 = 2,
-    L8 = 3,
-    RGB332 = 4,
-    ARGB2 = 5,
-    ARGB4 = 6,
-    RGB565 = 7,
-    Text8x8 = 9,
-    TextVGA = 10,
-    Bargraph = 11,
-    Paletted565 = 14,
-    Paletted4444 = 15,
-    Paletted8 = 16,
-    L2 = 17,
-    GLFormat = 31,
-}
-
-impl TryFrom<BitmapExtFormat> for BitmapFormat {
-    type Error = ();
-    fn try_from(ext: BitmapExtFormat) -> core::result::Result<Self, ()> {
-        let raw = ext as u16;
-        if raw > 17 {
-            return Err(());
-        }
-        match BitmapFormat::try_from(raw as u8) {
-            Ok(v) => Ok(v),
-            Err(_) => Err(()),
-        }
-    }
-}
-
-impl TryFrom<BitmapFormat> for BitmapExtFormat {
-    type Error = ();
-    fn try_from(fmt: BitmapFormat) -> core::result::Result<Self, ()> {
-        let raw = fmt as u8;
-        if raw > 7 {
-            // The first 17 formats are common, but the others are not
-            return Err(());
-        }
-        match BitmapExtFormat::try_from(raw as u16) {
-            Ok(v) => Ok(v),
-            Err(_) => Err(()),
-        }
-    }
-}
-
-/// `BitmapHandle` is a display list bitmap handle, numbered between zero and
-/// 31.
-#[derive(Copy, Clone, PartialEq)]
-pub struct BitmapHandle(u8);
-
-impl BitmapHandle {
-    //// Mask representing the bits of a u8 that contribute to an EVEAddress.
-    pub const MASK: u8 = 0x1f;
-
-    /// `SCRATCH` is the bitmap handle reserved for use by some coprocessor
-    /// behaviors. If you aren't using the coprocessor then there's nothing
-    /// special about this handle.
-    pub const SCRATCH: Self = Self::force_raw(15);
-
-    /// Test whether the given raw value is within the expected
-    /// range for a bitmap handle, returning `true` only if so.
-    pub const fn is_valid(raw: u8) -> bool {
-        // Only the lowest 22 bits may be nonzero.
-        (raw & Self::MASK) == 0
-    }
-
-    /// Turns the given raw value into a valid BitmapHandle by masking
-    /// out the bits that must always be zero for a valid handle.
-    ///
-    /// This is intended primarily for initializing global constants
-    /// representing well-known bitmap handles in your program. If you're
-    /// working with a dynamically-derived address value then better to use the
-    /// `TryFrom<u8>` implementation to get an error if the value is out of
-    /// range.
-    pub const fn force_raw(raw: u8) -> Self {
-        Self(raw & Self::MASK)
-    }
-
-    /// Returns `true` if the handle is one of the ones that has a preassigned
-    /// special purpose. These special purposes are optional but you may wish
-    /// to prefer using non-special handles if any are available.
-    pub const fn is_special(self) -> bool {
-        self.0 >= 15
-    }
-}
-
-impl TryFrom<u8> for BitmapHandle {
-    type Error = ();
-
-    fn try_from(raw: u8) -> Result<Self, Self::Error> {
-        if Self::is_valid(raw) {
-            Ok(Self(raw))
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl From<BitmapHandle> for u8 {
-    fn from(bmp: BitmapHandle) -> u8 {
-        bmp.0
-    }
-}
-
-impl From<BitmapHandle> for u32 {
-    fn from(bmp: BitmapHandle) -> u32 {
-        bmp.0 as u32
-    }
-}
-
-#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, PartialEq)]
-#[repr(u8)]
-pub enum BitmapSizeFilter {
-    Nearest = 0,
-    Bilinear = 1,
-}
-
-#[derive(TryFromPrimitive, IntoPrimitive, Clone, Copy, PartialEq)]
-#[repr(u8)]
-pub enum BitmapWrapMode {
-    Border = 0,
-    Repeat = 1,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -499,51 +313,51 @@ mod tests {
     #[test]
     fn test_dlcmd() {
         assert_eq!(
-            DLCmd::alpha_func(AlphaTestFunc::Greater, 254),
+            DLCmd::alpha_func(options::TestFunc::Greater, 254),
             DLCmd::from_raw(0x090003fe),
         );
         assert_eq!(
-            DLCmd::alpha_func(AlphaTestFunc::Never, 0),
+            DLCmd::alpha_func(options::TestFunc::Never, 0),
             DLCmd::from_raw(0x09000000),
         );
         assert_eq!(
-            DLCmd::begin(GraphicsPrimitive::Bitmaps),
+            DLCmd::begin(options::GraphicsPrimitive::Bitmaps),
             DLCmd::from_raw(0x1f000001),
         );
         assert_eq!(
-            DLCmd::begin(GraphicsPrimitive::Rects),
+            DLCmd::begin(options::GraphicsPrimitive::Rects),
             DLCmd::from_raw(0x1f000009),
         );
         assert_eq!(
-            DLCmd::bitmap_ext_format(BitmapExtFormat::ARGB1555),
+            DLCmd::bitmap_ext_format(options::BitmapExtFormat::ARGB1555),
             DLCmd::from_raw(0x2e000000),
         );
         assert_eq!(
-            DLCmd::bitmap_ext_format(BitmapExtFormat::ARGB4),
+            DLCmd::bitmap_ext_format(options::BitmapExtFormat::ARGB4),
             DLCmd::from_raw(0x2e000006),
         );
         assert_eq!(
-            DLCmd::bitmap_ext_format(BitmapExtFormat::TextVGA),
+            DLCmd::bitmap_ext_format(options::BitmapExtFormat::TextVGA),
             DLCmd::from_raw(0x2e00000a),
         );
         assert_eq!(
-            DLCmd::bitmap_handle(BitmapHandle::force_raw(0)),
+            DLCmd::bitmap_handle(options::BitmapHandle::force_raw(0)),
             DLCmd::from_raw(0x05000000),
         );
         assert_eq!(
-            DLCmd::bitmap_handle(BitmapHandle::force_raw(15)),
+            DLCmd::bitmap_handle(options::BitmapHandle::force_raw(15)),
             DLCmd::from_raw(0x0500000f),
         );
         assert_eq!(
-            DLCmd::bitmap_handle(BitmapHandle::force_raw(31)),
+            DLCmd::bitmap_handle(options::BitmapHandle::force_raw(31)),
             DLCmd::from_raw(0x0500001f),
         );
         assert_eq!(
-            DLCmd::bitmap_layout(BitmapFormat::ARGB4, 255, 255),
+            DLCmd::bitmap_layout(options::BitmapFormat::ARGB4, 255, 255),
             DLCmd::from_raw(0x0731feff),
         );
         assert_eq!(
-            DLCmd::bitmap_layout(BitmapFormat::ARGB4, 1024, 768),
+            DLCmd::bitmap_layout(options::BitmapFormat::ARGB4, 1024, 768),
             DLCmd::from_raw(0x07300100),
         );
         assert_eq!(
@@ -555,20 +369,20 @@ mod tests {
             DLCmd::from_raw(0x28000004)
         );
         assert_eq!(
-            DLCmd::bitmap_layout_pair(BitmapFormat::ARGB4, 255, 255),
+            DLCmd::bitmap_layout_pair(options::BitmapFormat::ARGB4, 255, 255),
             (DLCmd::from_raw(0x0731feff), DLCmd::from_raw(0x28000000)),
         );
         assert_eq!(
-            DLCmd::bitmap_layout_pair(BitmapFormat::ARGB4, 1024, 768),
+            DLCmd::bitmap_layout_pair(options::BitmapFormat::ARGB4, 1024, 768),
             (DLCmd::from_raw(0x07300100), DLCmd::from_raw(0x28000004)),
         );
         assert_eq!(
             DLCmd::bitmap_size(
                 255,
                 255,
-                BitmapSizeFilter::Nearest,
-                BitmapWrapMode::Border,
-                BitmapWrapMode::Border
+                options::BitmapSizeFilter::Nearest,
+                options::BitmapWrapMode::Border,
+                options::BitmapWrapMode::Border
             ),
             DLCmd::from_raw(0x0801feff),
         );
@@ -576,9 +390,9 @@ mod tests {
             DLCmd::bitmap_size(
                 2048,
                 2048,
-                BitmapSizeFilter::Nearest,
-                BitmapWrapMode::Border,
-                BitmapWrapMode::Border
+                options::BitmapSizeFilter::Nearest,
+                options::BitmapWrapMode::Border,
+                options::BitmapWrapMode::Border
             ),
             DLCmd::from_raw(0x08000000),
         );
@@ -586,9 +400,9 @@ mod tests {
             DLCmd::bitmap_size(
                 1024,
                 768,
-                BitmapSizeFilter::Nearest,
-                BitmapWrapMode::Border,
-                BitmapWrapMode::Border
+                options::BitmapSizeFilter::Nearest,
+                options::BitmapWrapMode::Border,
+                options::BitmapWrapMode::Border
             ),
             DLCmd::from_raw(0x08000100),
         );
@@ -596,9 +410,9 @@ mod tests {
             DLCmd::bitmap_size(
                 1,
                 1,
-                BitmapSizeFilter::Bilinear,
-                BitmapWrapMode::Border,
-                BitmapWrapMode::Border
+                options::BitmapSizeFilter::Bilinear,
+                options::BitmapWrapMode::Border,
+                options::BitmapWrapMode::Border
             ),
             DLCmd::from_raw(0x08100201),
         );
@@ -606,9 +420,9 @@ mod tests {
             DLCmd::bitmap_size(
                 1,
                 1,
-                BitmapSizeFilter::Nearest,
-                BitmapWrapMode::Repeat,
-                BitmapWrapMode::Border
+                options::BitmapSizeFilter::Nearest,
+                options::BitmapWrapMode::Repeat,
+                options::BitmapWrapMode::Border
             ),
             DLCmd::from_raw(0x08080201),
         );
@@ -616,9 +430,9 @@ mod tests {
             DLCmd::bitmap_size(
                 1,
                 1,
-                BitmapSizeFilter::Nearest,
-                BitmapWrapMode::Border,
-                BitmapWrapMode::Repeat
+                options::BitmapSizeFilter::Nearest,
+                options::BitmapWrapMode::Border,
+                options::BitmapWrapMode::Repeat
             ),
             DLCmd::from_raw(0x08040201),
         );
@@ -626,9 +440,9 @@ mod tests {
             DLCmd::bitmap_size_pair(
                 255,
                 255,
-                BitmapSizeFilter::Nearest,
-                BitmapWrapMode::Border,
-                BitmapWrapMode::Border
+                options::BitmapSizeFilter::Nearest,
+                options::BitmapWrapMode::Border,
+                options::BitmapWrapMode::Border
             ),
             (DLCmd::from_raw(0x0801feff), DLCmd::from_raw(0x29000000))
         );
@@ -636,9 +450,9 @@ mod tests {
             DLCmd::bitmap_size_pair(
                 2048,
                 2048,
-                BitmapSizeFilter::Nearest,
-                BitmapWrapMode::Border,
-                BitmapWrapMode::Border
+                options::BitmapSizeFilter::Nearest,
+                options::BitmapWrapMode::Border,
+                options::BitmapWrapMode::Border
             ),
             (DLCmd::from_raw(0x08000000), DLCmd::from_raw(0x29000000)),
         );
@@ -646,9 +460,9 @@ mod tests {
             DLCmd::bitmap_size_pair(
                 1024,
                 768,
-                BitmapSizeFilter::Nearest,
-                BitmapWrapMode::Border,
-                BitmapWrapMode::Border
+                options::BitmapSizeFilter::Nearest,
+                options::BitmapWrapMode::Border,
+                options::BitmapWrapMode::Border
             ),
             (DLCmd::from_raw(0x08000100), DLCmd::from_raw(0x29000401)),
         );

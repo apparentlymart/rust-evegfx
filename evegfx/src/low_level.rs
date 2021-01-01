@@ -321,16 +321,18 @@ mod tests {
     fn test_dl() {
         let mut eve = test_obj(|_| {});
 
-        eve.dl(DLCmd::begin(crate::display_list::GraphicsPrimitive::Points))
-            .unwrap();
+        eve.dl(DLCmd::begin(
+            crate::display_list::options::GraphicsPrimitive::Points,
+        ))
+        .unwrap();
         eve.dl(DLCmd::alpha_func(
-            crate::display_list::AlphaTestFunc::Never,
+            crate::display_list::options::TestFunc::Never,
             3,
         ))
         .unwrap();
         eve.dl_reset();
         eve.dl(DLCmd::begin(
-            crate::display_list::GraphicsPrimitive::Bitmaps,
+            crate::display_list::options::GraphicsPrimitive::Bitmaps,
         ))
         .unwrap();
 

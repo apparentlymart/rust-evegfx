@@ -134,11 +134,12 @@ fn main() {
     })
     .unwrap();
     eve.new_display_list(|b| {
+        use evegfx::display_list::options::*;
         use evegfx::display_list::Builder;
         use evegfx::graphics::*;
-        b.clear_color_rgb(evegfx::graphics::RGB { r: 0, g: 0, b: 10 })?;
+        b.clear_color_rgb(RGB { r: 0, g: 0, b: 10 })?;
         b.clear_all()?;
-        b.begin(evegfx::display_list::GraphicsPrimitive::Points)?;
+        b.begin(GraphicsPrimitive::Points)?;
         b.point_size(100)?;
         b.vertex_2f((1000, 1000))?;
         b.vertex_2f((2000, 2000))?;
