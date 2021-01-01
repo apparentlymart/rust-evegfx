@@ -1,5 +1,7 @@
 //! Traits for binding the API from this crate to specific hardware platforms.
 
+pub mod fake;
+
 /// Implementations of `Interface` serve as adapters between the interface
 /// this library expects and a specific physical implementation of that
 /// interface, such as a SPI bus.
