@@ -3,6 +3,7 @@
 pub mod options;
 
 use crate::graphics::{Vertex2F, Vertex2II, RGB, RGBA};
+use crate::memory::{MainMem, MemoryRegion, Ptr};
 use core::fmt::Debug;
 
 /// Represents an EVE display list command.
@@ -122,6 +123,12 @@ impl DLCmd {
             Self::bitmap_size_l(width, height, filter, wrap_x, wrap_y),
             Self::bitmap_size_h(width, height),
         )
+    }
+
+    /// Defines the address in main memory for the data for the
+    /// currently-selected bitmap handle.
+    pub fn bitmap_source<R: MemoryRegion + MainMem>(ptr: Ptr<R>) -> Self {
+        OpCode::BITMAP_SOURCE.build(ptr.to_raw())
     }
 
     pub const fn clear(color: bool, stencil: bool, tag: bool) -> Self {
@@ -254,6 +261,10 @@ pub trait Builder {
         self.append_command(pair.1)
     }
 
+    fn bitmap_source<R: MemoryRegion + MainMem>(&mut self, ptr: Ptr<R>) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_source(ptr))
+    }
+
     fn clear(&mut self, color: bool, stencil: bool, tag: bool) -> Result<(), Self::Error> {
         self.append_command(DLCmd::clear(color, stencil, tag))
     }
@@ -350,6 +361,7 @@ enum OpCode {
     BITMAP_LAYOUT_H = 0x28,
     BITMAP_SIZE = 0x08,
     BITMAP_SIZE_H = 0x29,
+    BITMAP_SOURCE = 0x01,
     CLEAR = 0x26,
     CLEAR_COLOR_RGB = 0x02,
     CLEAR_COLOR_A = 0x0F,
@@ -373,6 +385,7 @@ impl OpCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::testing::MainMem as TestMainMem;
 
     #[test]
     fn test_dlcmd() {
@@ -529,6 +542,10 @@ mod tests {
                 options::BitmapWrapMode::Border
             ),
             (DLCmd::from_raw(0x08000100), DLCmd::from_raw(0x29000401)),
+        );
+        assert_eq!(
+            DLCmd::bitmap_source(Ptr::<TestMainMem>::new(0x20)),
+            DLCmd::from_raw(0x01000020),
         );
     }
 }
