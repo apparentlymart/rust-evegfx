@@ -175,6 +175,47 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         self.write_bytes_chunked(iter)
     }
 
+    /// Similar to [`write_memory`](Coprocessor::write_memory), but for
+    /// compressed data.
+    ///
+    /// If your host has data compressed using the deflate algorithm (e.g.
+    /// using zlib) then it can stream that data in compressed form and have
+    /// the coprocessor "inflate" the data back into its original form while
+    /// writing it into main memory. This can both reduce data overhead in
+    /// the host program and reduce the time taken to stream the data into
+    /// EVE.
+    ///
+    /// The number of bytes written to main memory by this function will
+    /// depend on the content of the deflate stream. The application is
+    /// expected to know the original size of the compressed data in order
+    /// to determine the final bounds of the written data.
+    ///
+    /// All of the same usage concerns from `write_memory` apply here too,
+    /// with the addition of the requirement that the data must be a valid
+    /// deflate stream to avoid a coprocessor fault.
+    pub fn write_memory_inflate<'a, IntoIter, R>(
+        &mut self,
+        to: Ptr<R>,
+        from: IntoIter,
+    ) -> Result<(), M, I, W>
+    where
+        IntoIter: core::iter::IntoIterator<Item = &'a u8>,
+        IntoIter::IntoIter: core::iter::Iterator<Item = &'a u8>,
+        R: crate::memory::MemoryRegion + crate::memory::HostAccessible,
+    {
+        let ptr_raw = to.to_raw();
+        let iter = from.into_iter();
+
+        // First we'll write out the fixed-size command "header"...
+        self.write_stream(8, |cp| {
+            cp.write_to_buffer(0xFFFFFF22 as u32)?;
+            cp.write_to_buffer(ptr_raw)
+        })?;
+
+        // ...and now we must write out the given bytes themselves.
+        self.write_bytes_chunked(iter)
+    }
+
     pub fn show_testcard(&mut self) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF61 as u32))
     }
@@ -580,7 +621,7 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     // word boundary.
     fn write_bytes_chunked<'a, Iter>(&mut self, v: Iter) -> Result<(), M, I, W>
     where
-        Iter: core::iter::Iterator<Item = &'a u8> + core::iter::ExactSizeIterator,
+        Iter: core::iter::Iterator<Item = &'a u8>,
     {
         for word in super::command_word::command_words_for_bytes_iter(v) {
             self.ensure_space(4)?;

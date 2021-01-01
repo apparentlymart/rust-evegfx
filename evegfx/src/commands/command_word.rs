@@ -45,21 +45,35 @@ impl From<(u8, u8, u8, u8)> for CommandWord {
 
 pub(crate) fn command_words_for_bytes_iter<'a, Iter>(iter: Iter) -> ByteToCommandIter<'a, Iter>
 where
-    Iter: core::iter::Iterator<Item = &'a u8> + core::iter::ExactSizeIterator,
+    Iter: core::iter::Iterator<Item = &'a u8>,
 {
     ByteToCommandIter { wrapped: iter }
 }
 
 pub(crate) struct ByteToCommandIter<'a, I>
 where
-    I: core::iter::Iterator<Item = &'a u8> + core::iter::ExactSizeIterator,
+    I: core::iter::Iterator<Item = &'a u8>,
 {
     wrapped: I,
 }
 
+impl<'a, I> ByteToCommandIter<'a, I>
+where
+    I: core::iter::Iterator<Item = &'a u8>,
+{
+    #[inline]
+    fn translate_size(inner: usize) -> usize {
+        const SIZE: usize = core::mem::size_of::<u32>();
+
+        // This is ceil(len / 4), accounting for us rounding up to include
+        // alignment bytes.
+        (inner + (SIZE - 1)) / SIZE
+    }
+}
+
 impl<'a, I> Iterator for ByteToCommandIter<'a, I>
 where
-    I: core::iter::Iterator<Item = &'a u8> + core::iter::ExactSizeIterator,
+    I: core::iter::Iterator<Item = &'a u8>,
 {
     type Item = CommandWord;
 
@@ -85,8 +99,14 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.len();
-        (len, Some(len))
+        let inner = self.wrapped.size_hint();
+        (
+            Self::translate_size(inner.0),
+            match inner.1 {
+                Some(v) => Some(Self::translate_size(v)),
+                None => None,
+            },
+        )
     }
 }
 
@@ -95,11 +115,7 @@ where
     I: core::iter::Iterator<Item = &'a u8> + core::iter::ExactSizeIterator,
 {
     fn len(&self) -> usize {
-        const SIZE: usize = core::mem::size_of::<u32>();
-
-        // This is ceil(len / 4), accounting for us rounding up to include
-        // alignment bytes.
-        (self.wrapped.len() + (SIZE - 1)) / SIZE
+        Self::translate_size(self.wrapped.len())
     }
 }
 
