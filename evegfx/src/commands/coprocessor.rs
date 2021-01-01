@@ -383,7 +383,7 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         self.block_until_idle()
     }
 
-    /// Blocks until the coprocessor has compelted all of the commands issued
+    /// Blocks until the coprocessor has completed all of the commands issued
     /// so far and then returns the value of the given system register.
     ///
     /// You can use this in situations where earlier coprocessor commands may
@@ -395,6 +395,31 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         self.write_stream(12, |cp| {
             cp.write_to_buffer(0xFFFFFF19 as u32)?;
             cp.write_to_buffer(ptr.to_raw())?;
+            cp.write_to_buffer(0xf0f0f0f0 as u32) // space for the result to be written
+        })?;
+
+        self.block_for_output_values(|ll, addr| {
+            let result_ptr = addr - 4;
+            ll.rd32(result_ptr)
+        })
+    }
+
+    /// Blocks until the coprocessor has completed all of the commands issued
+    /// so far and then calculates the CRC32 checksum of the memory covered
+    /// by the given slice.
+    pub fn block_for_memory_crc<R, S>(&mut self, region: S) -> Result<u32, M, I, W>
+    where
+        R: crate::memory::MemoryRegion,
+        S: Into<Slice<R>>,
+    {
+        let region: Slice<R> = region.into();
+        let ptr = region.start();
+        let len = region.len();
+
+        self.write_stream(12, |cp| {
+            cp.write_to_buffer(0xFFFFFF18 as u32)?;
+            cp.write_to_buffer(ptr.to_raw())?;
+            cp.write_to_buffer(len)?;
             cp.write_to_buffer(0xf0f0f0f0 as u32) // space for the result to be written
         })?;
 

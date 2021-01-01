@@ -469,6 +469,53 @@ mod tests {
     }
 
     #[test]
+    fn test_block_for_memory_crc() {
+        let mut cp = test_obj(|ei| {
+            // Make sure the function will see enough space to think
+            // that the coprocessor is always caught up.
+            ei.current_space = 4092;
+
+            // We must fake the REG_CMD_WRITE value for this command, because
+            // it expects to find it pointing to the end of the command it
+            // just wrote.
+            ei.reg_cmd_write_value = 12;
+
+            // We'll return something "interesting" at all other memory
+            // addresses, so we can test that this ends up getting returned
+            // as the result.
+            ei.other_read_value = 0xf33df4c3;
+        });
+
+        let start_addr = <Exhaustive as Model>::MainMem::ptr(2);
+        let end_addr = <Exhaustive as Model>::MainMem::ptr(12);
+        let result = unwrap_copro(cp.block_for_memory_crc(start_addr..end_addr));
+
+        let ei = unwrap_copro(cp.take_interface());
+        let got = ei.calls();
+        let want = vec![
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::Write(0xFFFFFF18), // CMD_MEMCRC
+            MockInterfaceCall::Write(2),          // start address
+            MockInterfaceCall::Write(10),         // data length
+            MockInterfaceCall::Write(0xf0f0f0f0), // space for the result to be written
+            MockInterfaceCall::StopStream,
+            MockInterfaceCall::ReadWritePtr(12), // Faked pointer to end of command
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::ReadOther(0x00300008, 0xf33df4c3), // Address of the result
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::StopStream,
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
+
+        // Our mock interface doesn't actually have a coprocessor to write a
+        // result into place, so we expect to get back the "other read value"
+        // configured above, which is the result of the ReadOther call asserted
+        // above.
+        debug_assert_eq!(result, 0xf33df4c3);
+    }
+
+    #[test]
     fn test_use_api_level_1() {
         let mut cp = test_obj(|_| {});
 
