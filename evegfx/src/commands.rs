@@ -324,6 +324,45 @@ mod tests {
     }
 
     #[test]
+    fn test_write_memory_image() {
+        use options::Options;
+
+        let mut cp = test_obj(|_| {});
+
+        let ptr = <Exhaustive as crate::models::Model>::MainMem::ptr(21);
+        // We don't actually use valid image data here because we don't
+        // have a real coprocessor under this anyway, but if we sent this
+        // data to a real EVE chip then it would generate a fault.
+        unwrap_copro(
+            cp.write_memory_image(
+                ptr,
+                b"hello world",
+                options::LoadImage::new()
+                    .scale_to_screen()
+                    .jpeg_color_mode(options::JPEGColorMode::Monochrome),
+            ),
+        );
+
+        let ei = unwrap_copro(cp.take_interface());
+        let got = ei.calls();
+        let want = vec![
+            MockInterfaceCall::ReadSpace(4092),
+            MockInterfaceCall::StartStream,
+            MockInterfaceCall::Write(0xFFFFFF24), // CMD_LOADIMAGE
+            MockInterfaceCall::Write(21),         // the target address
+            MockInterfaceCall::Write(8 + 1),      // OPTS_FULLSCREEN + OPT_MONO
+            // NOTE: Unlike CMD_MEMWRITE there is no explicit length field
+            // here, because the image data is self-delimiting and so the
+            // coprocessor can tell when it has found the end of it.
+            MockInterfaceCall::Write(0x6c6c6568), // 'h', 'e', 'l', 'l'
+            MockInterfaceCall::Write(0x6f77206f), // 'o', ' ', 'w', 'o'
+            MockInterfaceCall::Write(0x00646c72), // 'r', 'l', 'd' + '\0' padding byte
+            MockInterfaceCall::StopStream,
+        ];
+        debug_assert_eq!(&got[..], &want[..]);
+    }
+
+    #[test]
     fn test_draw_button_literal() {
         use options::Options as _;
         use strfmt::Message;

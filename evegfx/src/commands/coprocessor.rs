@@ -216,6 +216,42 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         self.write_bytes_chunked(iter)
     }
 
+    /// Similar to [`write_memory`](Coprocessor::write_memory), but
+    /// specifically for JPEG or PNG images.
+    ///
+    /// The number of bytes written to main memory by this function will
+    /// depend on the content of the image. The application is
+    /// expected to know the dimensions and pixel format of the image
+    /// to predict the final bounds of the written data.
+    ///
+    /// All of the same usage concerns from `write_memory` apply here too,
+    /// with the addition of the requirement that the data must be a valid
+    /// deflate stream to avoid a coprocessor fault.
+    pub fn write_memory_image<'a, IntoIter, R>(
+        &mut self,
+        to: Ptr<R>,
+        from: IntoIter,
+        opts: options::LoadImage,
+    ) -> Result<(), M, I, W>
+    where
+        IntoIter: core::iter::IntoIterator<Item = &'a u8>,
+        IntoIter::IntoIter: core::iter::Iterator<Item = &'a u8>,
+        R: crate::memory::MemoryRegion + crate::memory::HostAccessible,
+    {
+        let ptr_raw = to.to_raw();
+        let iter = from.into_iter();
+
+        // First we'll write out the fixed-size command "header"...
+        self.write_stream(12, |cp| {
+            cp.write_to_buffer(0xFFFFFF24 as u32)?;
+            cp.write_to_buffer(ptr_raw)?;
+            cp.write_to_buffer(opts.to_raw())
+        })?;
+
+        // ...and now we must write out the given bytes themselves.
+        self.write_bytes_chunked(iter)
+    }
+
     pub fn show_testcard(&mut self) -> Result<(), M, I, W> {
         self.write_stream(4, |cp| cp.write_to_buffer(0xFFFFFF61 as u32))
     }
