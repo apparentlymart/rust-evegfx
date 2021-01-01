@@ -398,9 +398,17 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
             cp.write_to_buffer(0xf0f0f0f0 as u32) // space for the result to be written
         })?;
 
-        // This command has space allocated in it where the coprocessor will
-        // write the result, so we'll need to grab the current write pointer
-        // after we write this out and then wait for the value to appear.
+        self.block_for_output_values(|ll, addr| {
+            let result_ptr = addr - 4;
+            ll.rd32(result_ptr)
+        })
+    }
+
+    fn block_for_output_values<F, R>(&mut self, f: F) -> Result<R, M, I, W>
+    where
+        R: Sized,
+        F: FnOnce(&mut LowLevel<M, I>, Ptr<M::DisplayListMem>) -> core::result::Result<R, I::Error>,
+    {
         let ptr_reg = crate::registers::Register::CMD_WRITE;
         let stopped = self.stop_stream()?;
         let write_addr = {
@@ -412,9 +420,8 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         self.ensure_space_stopped(&stopped, Self::space_when_empty())?;
 
         let result = {
-            let result_ptr: Ptr<M::DisplayListMem> = Ptr::new(write_addr) - 4;
             let ll = self.borrow_low_level(&stopped);
-            Self::interface_result(ll.rd32(result_ptr))
+            Self::interface_result(f(ll, Ptr::new(write_addr)))
         };
 
         self.start_stream(stopped)?;
