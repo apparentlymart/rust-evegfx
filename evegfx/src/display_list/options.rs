@@ -185,14 +185,14 @@ impl From<BitmapHandle> for u32 {
 pub struct MatrixCoeff(pub(crate) u32);
 
 impl MatrixCoeff {
-    const VALUE_MASK: u32 = 0xffff;
     const P_MASK: u32 = 0x10000;
     const SCALE_8_8: f32 = 256.0;
     const SCALE_1_15: f32 = 32768.0;
 
     /// Creates a matrix coefficient with a whole number value.
     pub const fn new_int(v: i8) -> Self {
-        MatrixCoeff(((v as u16) * 256) as u32)
+        let enc = (((v as i16) << 8) as u16) as u32;
+        MatrixCoeff(enc)
     }
 
     /// Creates a matrix coefficient with an approximation of the given float
@@ -201,7 +201,7 @@ impl MatrixCoeff {
     ///
     /// This has the same range as `new_88`.
     pub fn new_f32_approx_8_8(v: f32) -> Self {
-        let enc = ((v * Self::SCALE_8_8) as i16) as u32;
+        let enc = ((v * Self::SCALE_8_8) as i16) as u16 as u32;
         MatrixCoeff(enc)
     }
 
@@ -214,8 +214,8 @@ impl MatrixCoeff {
     ///
     /// This has the same range as `new_8_8`.
     pub fn new_f32_approx_1_15(v: f32) -> Self {
-        let enc = ((v * Self::SCALE_1_15) as i16) as u32;
-        MatrixCoeff(enc)
+        let enc = ((v * Self::SCALE_1_15) as i16) as u16 as u32;
+        MatrixCoeff(enc | Self::P_MASK)
     }
 
     /// Creates a matrix coefficient with an eight-bit whole number part and
@@ -339,8 +339,8 @@ impl From<MatrixCoeff> for i8 {
 /// you can just pass a representation based on a tuple of two tuples with
 /// three coefficients each, representing the rows and columns of the matrix.
 pub struct Matrix3x2(
-    (MatrixCoeff, MatrixCoeff, MatrixCoeff),
-    (MatrixCoeff, MatrixCoeff, MatrixCoeff),
+    pub(crate) (MatrixCoeff, MatrixCoeff, MatrixCoeff),
+    pub(crate) (MatrixCoeff, MatrixCoeff, MatrixCoeff),
 );
 
 impl<A, B, C, D, E, F> From<((A, B, C), (D, E, F))> for Matrix3x2

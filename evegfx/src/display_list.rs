@@ -131,6 +131,36 @@ impl DLCmd {
         OpCode::BITMAP_SOURCE.build(ptr.to_raw())
     }
 
+    pub fn bitmap_transform_a(coeff: impl Into<options::MatrixCoeff>) -> Self {
+        let coeff: options::MatrixCoeff = coeff.into();
+        OpCode::BITMAP_TRANSFORM_A.build(coeff.to_raw())
+    }
+
+    pub fn bitmap_transform_b(coeff: impl Into<options::MatrixCoeff>) -> Self {
+        let coeff: options::MatrixCoeff = coeff.into();
+        OpCode::BITMAP_TRANSFORM_B.build(coeff.to_raw())
+    }
+
+    pub fn bitmap_transform_c(coeff: impl Into<options::MatrixCoeff>) -> Self {
+        let coeff: options::MatrixCoeff = coeff.into();
+        OpCode::BITMAP_TRANSFORM_C.build(coeff.to_raw())
+    }
+
+    pub fn bitmap_transform_d(coeff: impl Into<options::MatrixCoeff>) -> Self {
+        let coeff: options::MatrixCoeff = coeff.into();
+        OpCode::BITMAP_TRANSFORM_D.build(coeff.to_raw())
+    }
+
+    pub fn bitmap_transform_e(coeff: impl Into<options::MatrixCoeff>) -> Self {
+        let coeff: options::MatrixCoeff = coeff.into();
+        OpCode::BITMAP_TRANSFORM_E.build(coeff.to_raw())
+    }
+
+    pub fn bitmap_transform_f(coeff: impl Into<options::MatrixCoeff>) -> Self {
+        let coeff: options::MatrixCoeff = coeff.into();
+        OpCode::BITMAP_TRANSFORM_F.build(coeff.to_raw())
+    }
+
     pub const fn clear(color: bool, stencil: bool, tag: bool) -> Self {
         OpCode::CLEAR.build(
             if color { 0b100 } else { 0b000 }
@@ -265,6 +295,63 @@ pub trait Builder {
         self.append_command(DLCmd::bitmap_source(ptr))
     }
 
+    fn bitmap_transform_a(
+        &mut self,
+        coeff: impl Into<options::MatrixCoeff>,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_transform_a(coeff))
+    }
+
+    fn bitmap_transform_b(
+        &mut self,
+        coeff: impl Into<options::MatrixCoeff>,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_transform_b(coeff))
+    }
+
+    fn bitmap_transform_c(
+        &mut self,
+        coeff: impl Into<options::MatrixCoeff>,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_transform_c(coeff))
+    }
+
+    fn bitmap_transform_d(
+        &mut self,
+        coeff: impl Into<options::MatrixCoeff>,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_transform_d(coeff))
+    }
+
+    fn bitmap_transform_e(
+        &mut self,
+        coeff: impl Into<options::MatrixCoeff>,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_transform_e(coeff))
+    }
+
+    fn bitmap_transform_f(
+        &mut self,
+        coeff: impl Into<options::MatrixCoeff>,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_transform_f(coeff))
+    }
+
+    /// Appends six display list commands to set all six of the bitmap
+    /// transform matrix coefficients to match the given matrix.
+    fn bitmap_transform_matrix(
+        &mut self,
+        matrix: impl Into<options::Matrix3x2>,
+    ) -> Result<(), Self::Error> {
+        let matrix: options::Matrix3x2 = matrix.into();
+        self.append_command(DLCmd::bitmap_transform_a(matrix.0 .0))?;
+        self.append_command(DLCmd::bitmap_transform_b(matrix.0 .1))?;
+        self.append_command(DLCmd::bitmap_transform_c(matrix.0 .2))?;
+        self.append_command(DLCmd::bitmap_transform_d(matrix.1 .0))?;
+        self.append_command(DLCmd::bitmap_transform_e(matrix.1 .1))?;
+        self.append_command(DLCmd::bitmap_transform_f(matrix.1 .2))
+    }
+
     fn clear(&mut self, color: bool, stencil: bool, tag: bool) -> Result<(), Self::Error> {
         self.append_command(DLCmd::clear(color, stencil, tag))
     }
@@ -362,6 +449,12 @@ enum OpCode {
     BITMAP_SIZE = 0x08,
     BITMAP_SIZE_H = 0x29,
     BITMAP_SOURCE = 0x01,
+    BITMAP_TRANSFORM_A = 0x15,
+    BITMAP_TRANSFORM_B = 0x16,
+    BITMAP_TRANSFORM_C = 0x17,
+    BITMAP_TRANSFORM_D = 0x18,
+    BITMAP_TRANSFORM_E = 0x19,
+    BITMAP_TRANSFORM_F = 0x1A,
     CLEAR = 0x26,
     CLEAR_COLOR_RGB = 0x02,
     CLEAR_COLOR_A = 0x0F,
@@ -546,6 +639,15 @@ mod tests {
         assert_eq!(
             DLCmd::bitmap_source(Ptr::<TestMainMem>::new(0x20)),
             DLCmd::from_raw(0x01000020),
+        );
+        assert_eq!(DLCmd::bitmap_transform_a(1), DLCmd::from_raw(0x15000100));
+        assert_eq!(DLCmd::bitmap_transform_b(0.5), DLCmd::from_raw(0x16014000));
+        assert_eq!(DLCmd::bitmap_transform_c(1.5), DLCmd::from_raw(0x17000180));
+        assert_eq!(DLCmd::bitmap_transform_d(-1), DLCmd::from_raw(0x1800ff00));
+        assert_eq!(DLCmd::bitmap_transform_e(-1.5), DLCmd::from_raw(0x1900fe80));
+        assert_eq!(
+            DLCmd::bitmap_transform_f(options::MatrixCoeff::new_8_8(2, 3)),
+            DLCmd::from_raw(0x1a000203)
         );
     }
 }
