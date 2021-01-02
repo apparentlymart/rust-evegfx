@@ -193,6 +193,11 @@ impl DLCmd {
         Self::END
     }
 
+    pub const fn command_from_macro(num: u8) -> Self {
+        const MASK: u32 = 0b1;
+        OpCode::MACRO.build(num as u32 & MASK)
+    }
+
     pub const fn point_size(size: u16) -> Self {
         const MASK: u32 = 0b0000111111111111;
         OpCode::POINT_SIZE.build(size as u32 & MASK)
@@ -382,6 +387,10 @@ pub trait Builder {
         self.append_command(DLCmd::END)
     }
 
+    fn command_from_macro(&mut self, num: u8) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::command_from_macro(num))
+    }
+
     fn point_size(&mut self, size: u16) -> Result<(), Self::Error> {
         self.append_command(DLCmd::point_size(size))
     }
@@ -460,6 +469,7 @@ enum OpCode {
     CLEAR_COLOR_A = 0x0F,
     DISPLAY = 0x00,
     END = 0x21,
+    MACRO = 0x25,
     POINT_SIZE = 0x0d,
     VERTEX2F = 0b01000000,  // This opcode is packed into the two MSB
     VERTEX2II = 0b10000000, // This opcode is packed into the two MSB

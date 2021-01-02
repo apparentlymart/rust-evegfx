@@ -10,3 +10,4 @@ evegfx = { path = "../evegfx" }
 evegfx-spidriver = { path = "../evegfx-spidriver" }
 serial-embedded-hal = "0.1.2"
 spidriver = "0.1.0"
+serial-core = "0.4.0"

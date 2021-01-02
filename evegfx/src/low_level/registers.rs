@@ -23,6 +23,8 @@ pub enum Register {
     HSYNC0 = 0x38,
     HSYNC1 = 0x3c,
     ID = 0x00,
+    MACRO_0 = 0xd8,
+    MACRO_1 = 0xdc,
     OUTBITS = 0x5c,
     PCLK = 0x70,
     PCLK_POL = 0x6c,

@@ -189,25 +189,59 @@ fn main() {
     })
     .unwrap();
 
-    /*
     println!("Entering main loop...");
     let mut ball_x: i16 = 1000;
     let mut ball_y: i16 = 1000;
     let mut ball_dx: i16 = 40;
     let mut ball_dy: i16 = 40;
-    const MAX_X: i16 = 1280 * 16;
+    const MAX_X: i16 = 600 * 16;
     const MAX_Y: i16 = 720 * 16;
+    {
+        println!("Configure bouncing ball display list");
+        {
+            println!("Set REG_MACRO_1");
+            let r = cp.write_register(
+                evegfx::low_level::Register::MACRO_1,
+                evegfx::display_list::DLCmd::vertex_2f((0, 0)).as_raw(),
+            );
+            //let r = cp.block_until_video_scanout();
+            unwrap_cp(&mut cp, r);
+        }
+        {
+            println!("New display list");
+            let r = cp.new_display_list(|cp| {
+                println!("clear_color_rgb");
+                cp.clear_color_rgb(evegfx::graphics::RGB { r: 0, g: 0, b: 127 })?;
+                println!("clear_all");
+                cp.clear_all()?;
+                println!("begin points");
+                cp.begin(evegfx::display_list::options::GraphicsPrimitive::Points)?;
+                println!("point size 100");
+                cp.point_size(100)?;
+                println!("insert macro 1 (our vertex)");
+                cp.command_from_macro(1)?;
+                println!("display");
+                cp.display()
+            });
+            unwrap_cp(&mut cp, r);
+        }
+    }
     loop {
-        //cp.block_until_video_scanout().unwrap();
-        cp.new_display_list(|cp| {
-            cp.clear_color_rgb(evegfx::graphics::RGB { r: 0, g: 0, b: 127 })?;
-            cp.clear_all()?;
-            cp.begin(evegfx::display_list::GraphicsPrimitive::Points)?;
-            cp.point_size(100)?;
-            cp.vertex_2f((ball_x, ball_y))?;
-            cp.display()
-        })
-        .unwrap();
+        {
+            println!("Await video scanout");
+            let r = cp.wait_video_scanout();
+            //let r = cp.block_until_video_scanout();
+            unwrap_cp(&mut cp, r);
+        }
+        {
+            println!("Update vertex macro");
+            let r = cp.write_register(
+                evegfx::low_level::Register::MACRO_1,
+                evegfx::display_list::DLCmd::vertex_2f((ball_x, ball_y)).as_raw(),
+            );
+            unwrap_cp(&mut cp, r);
+        }
+        println!("Done with EVE for this frame");
         ball_x += ball_dx;
         ball_y += ball_dy;
         if ball_x < 0 {
@@ -227,11 +261,62 @@ fn main() {
             ball_y = MAX_Y - (ball_y - MAX_Y);
         }
     }
-    */
 
     println!("Waiting for the coprocessor to become idle...");
-    match cp.block_until_idle() {
-        Ok(_) => {}
+    {
+        let r = cp.block_until_idle();
+        unwrap_cp(&mut cp, r);
+    }
+    cp.block_until_idle().unwrap();
+
+    println!("All done!");
+
+    /*
+    let ll = eve.borrow_low_level();
+    show_current_dl(ll);
+    */
+}
+
+extern crate serial_core;
+
+fn unwrap_cp<R>(
+    cp: &mut evegfx::commands::Coprocessor<
+        evegfx::BT815,
+        LogInterface<
+            evegfx_spidriver::EVESPIDriverInterface<
+                serial_embedded_hal::Tx,
+                serial_embedded_hal::Rx,
+            >,
+        >,
+        LogWaiter<
+            evegfx::BT815,
+            LogInterface<
+                evegfx_spidriver::EVESPIDriverInterface<
+                    serial_embedded_hal::Tx,
+                    serial_embedded_hal::Rx,
+                >,
+            >,
+            evegfx::commands::waiter::PollingWaiter<
+                evegfx::BT815,
+                LogInterface<
+                    evegfx_spidriver::EVESPIDriverInterface<
+                        serial_embedded_hal::Tx,
+                        serial_embedded_hal::Rx,
+                    >,
+                >,
+            >,
+        >,
+    >,
+    r: Result<
+        R,
+        evegfx::commands::Error<
+            spidriver::Error<serial_core::Error, serial_core::Error>,
+            spidriver::Error<serial_core::Error, serial_core::Error>,
+        >,
+    >,
+) -> R {
+    match r {
+        Ok(r) => r,
         Err(err) => match err {
             evegfx::commands::Error::Interface(err) => {
                 panic!("interface error: {:?}", err);
@@ -247,14 +332,6 @@ fn main() {
             }
         },
     }
-    cp.block_until_idle().unwrap();
-
-    println!("All done!");
-
-    /*
-    let ll = eve.borrow_low_level();
-    show_current_dl(ll);
-    */
 }
 
 fn show_register<M: Model, I: Interface>(

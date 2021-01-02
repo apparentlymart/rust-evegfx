@@ -66,6 +66,7 @@ dependencies = [
  "embedded-hal",
  "evegfx",
  "evegfx-spidriver",
+ "serial-core",
  "serial-embedded-hal",
  "spidriver",
 ]

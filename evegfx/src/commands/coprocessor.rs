@@ -152,6 +152,17 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
         })
     }
 
+    pub fn write_register(&mut self, reg: Register, v: u32) -> Result<(), M, I, W> {
+        let ptr_raw = reg.ptr::<M>().to_raw();
+
+        self.write_stream(16, |cp| {
+            cp.write_to_buffer(0xFFFFFF1A as u32)?;
+            cp.write_to_buffer(ptr_raw)?;
+            cp.write_to_buffer(4)?;
+            cp.write_to_buffer(v)
+        })
+    }
+
     /// Writes raw data from host memory into locations in the
     /// directly-addressable part of the EVE memory space.
     ///
