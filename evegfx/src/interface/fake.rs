@@ -2,7 +2,6 @@
 
 use crate::commands::waiter::PollingWaiter;
 use crate::commands::Coprocessor;
-use crate::interface;
 use crate::low_level::Register;
 use crate::memory::MemoryRegion;
 use crate::models::fake::Model as FakeModel;
@@ -174,42 +173,6 @@ impl<'a, M: Model, RF: RegisterFile> Interface<'a, M, RF> {
         }
         OffsetAddr::Unknown
     }
-
-    fn main_mem_result<R>(
-        r: Result<R, SliceError>,
-    ) -> Result<R, <Self as interface::Interface>::Error> {
-        match r {
-            Ok(v) => Ok(v),
-            Err(err) => Err(Error::MainMem(err)),
-        }
-    }
-
-    fn dl_mem_result<R>(
-        r: Result<R, SliceError>,
-    ) -> Result<R, <Self as interface::Interface>::Error> {
-        match r {
-            Ok(v) => Ok(v),
-            Err(err) => Err(Error::DisplayListMem(err)),
-        }
-    }
-
-    fn reg_result<R>(
-        r: Result<R, RegisterError<RF::Error>>,
-    ) -> Result<R, <Self as interface::Interface>::Error> {
-        match r {
-            Ok(v) => Ok(v),
-            Err(err) => Err(Error::Registers(err)),
-        }
-    }
-
-    fn cmd_mem_result<R>(
-        r: Result<R, SliceError>,
-    ) -> Result<R, <Self as interface::Interface>::Error> {
-        match r {
-            Ok(v) => Ok(v),
-            Err(err) => Err(Error::CommandMem(err)),
-        }
-    }
 }
 
 impl<'a, M: Model, RF: RegisterFile> super::Interface for Interface<'a, M, RF> {
@@ -234,20 +197,20 @@ impl<'a, M: Model, RF: RegisterFile> super::Interface for Interface<'a, M, RF> {
                     let new_addr =
                         (<M as Model>::MainMem::ptr(offset) + data.len() as u32).to_raw();
                     self.write_addr = Some(new_addr);
-                    Self::main_mem_result(self.main_ram.mm_write(offset, data))
+                    result(self.main_ram.mm_write(offset, data))
                 }
                 DisplayList(offset) => {
                     let new_addr =
                         (<M as Model>::DisplayListMem::ptr(offset) + data.len() as u32).to_raw();
                     self.write_addr = Some(new_addr);
-                    Self::dl_mem_result(self.display_list_ram.mm_write(offset, data))
+                    result(self.display_list_ram.mm_write(offset, data))
                 }
-                Registers(offset) => Self::reg_result(self.registers.mm_write(offset, data)),
+                Registers(offset) => result(self.registers.mm_write(offset, data)),
                 Command(offset) => {
                     let new_addr =
                         (<M as Model>::CommandMem::ptr(offset) + data.len() as u32).to_raw();
                     self.write_addr = Some(new_addr);
-                    Self::cmd_mem_result(self.cmd_ram.mm_write(offset, data))
+                    result(self.cmd_ram.mm_write(offset, data))
                 }
                 Unknown => Err(Error::UnmappedAddr),
             }
@@ -284,20 +247,20 @@ impl<'a, M: Model, RF: RegisterFile> super::Interface for Interface<'a, M, RF> {
                     let new_addr =
                         (<M as Model>::MainMem::ptr(offset) + into.len() as u32).to_raw();
                     self.write_addr = Some(new_addr);
-                    Self::main_mem_result(self.main_ram.mm_read(offset, into))
+                    result(self.main_ram.mm_read(offset, into))
                 }
                 DisplayList(offset) => {
                     let new_addr =
                         (<M as Model>::DisplayListMem::ptr(offset) + into.len() as u32).to_raw();
                     self.write_addr = Some(new_addr);
-                    Self::dl_mem_result(self.display_list_ram.mm_read(offset, into))
+                    result(self.display_list_ram.mm_read(offset, into))
                 }
-                Registers(offset) => Self::reg_result(self.registers.mm_read(offset, into)),
+                Registers(offset) => result(self.registers.mm_read(offset, into)),
                 Command(offset) => {
                     let new_addr =
                         (<M as Model>::CommandMem::ptr(offset) + into.len() as u32).to_raw();
                     self.write_addr = Some(new_addr);
-                    Self::cmd_mem_result(self.cmd_ram.mm_read(offset, into))
+                    result(self.cmd_ram.mm_read(offset, into))
                 }
                 Unknown => Err(Error::UnmappedAddr),
             }
@@ -334,10 +297,30 @@ enum OffsetAddr {
 pub enum Error<RegError> {
     IncorrectSequence,
     UnmappedAddr,
-    MainMem(SliceError),
-    DisplayListMem(SliceError),
+    Storage(SliceError),
     Registers(RegisterError<RegError>),
-    CommandMem(SliceError),
+}
+
+impl<RegError> From<SliceError> for Error<RegError> {
+    fn from(err: SliceError) -> Self {
+        Error::Storage(err)
+    }
+}
+
+impl<RegError> From<RegisterError<RegError>> for Error<RegError> {
+    fn from(err: RegisterError<RegError>) -> Self {
+        Error::Registers(err)
+    }
+}
+
+fn result<R, E, RegError>(r: Result<R, E>) -> Result<R, Error<RegError>>
+where
+    E: Into<Error<RegError>>,
+{
+    match r {
+        Ok(v) => Ok(v),
+        Err(err) => Err(err.into()),
+    }
 }
 
 /// Implemented by types that serve as "hooks" for implementing register
