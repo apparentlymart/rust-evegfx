@@ -278,6 +278,14 @@ impl MatrixCoeff {
         }
     }
 
+    pub const fn as_8_8(self) -> Self {
+        if self.is_8_8() {
+            self
+        } else {
+            Self((self.to_raw_value() >> 7) as u16 as u32)
+        }
+    }
+
     pub(crate) const fn to_raw(self) -> u32 {
         self.0
     }
@@ -331,6 +339,27 @@ impl From<MatrixCoeff> for i8 {
         v.to_i8()
     }
 }
+impl core::ops::Mul<MatrixCoeff> for MatrixCoeff {
+    type Output = MatrixCoeff;
+    fn mul(self, other: MatrixCoeff) -> MatrixCoeff {
+        let shift_a = self.shift();
+        let shift_b = other.shift();
+        let a: i32;
+        let b: i32;
+        let shift: usize;
+        if shift_a == shift_b {
+            a = self.to_raw_value() as i32;
+            b = other.to_raw_value() as i32;
+            shift = shift_a;
+        } else {
+            a = self.as_8_8().to_raw_value() as i32;
+            b = other.as_8_8().to_raw_value() as i32;
+            shift = 8;
+        }
+        let mul = ((a * b) >> shift) as i16 as u16 as u32;
+        MatrixCoeff(mul | if shift == 8 { 0 } else { Self::P_MASK })
+    }
+}
 
 /// A 3 by 2 bitmap transformation matrix.
 ///
@@ -372,4 +401,25 @@ pub enum BitmapSizeFilter {
 pub enum BitmapWrapMode {
     Border = 0,
     Repeat = 1,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_matrix_coeff_mul() {
+        {
+            let a = MatrixCoeff::new_int(2);
+            let b = MatrixCoeff::new_int(4);
+            let c = a * b;
+            assert_eq!(c.to_raw_value(), 0x0800);
+        }
+        {
+            let a = MatrixCoeff::new_int(2);
+            let b = MatrixCoeff::new_8_8(0, 5);
+            let c = a * b;
+            assert_eq!(c.to_raw_value(), 0x0100);
+        }
+    }
 }
