@@ -898,6 +898,7 @@ where
 /// hardware, errors returned by the "waiter" while waiting for more buffer
 /// space, and coprocessor faults reported by the EVE chip itself.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error<IErr, WErr> {
     /// Errors encountered when sending or recieving data from the EVE chip.
     ///

@@ -294,6 +294,7 @@ enum OffsetAddr {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error<RegError> {
     IncorrectSequence,
     UnmappedAddr,
@@ -527,6 +528,7 @@ impl<RF: RegisterFile> MemoryMapped for RF {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RegisterError<RFErr> {
     NotRegister(u16),
     OutOfBounds,

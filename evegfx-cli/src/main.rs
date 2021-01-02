@@ -330,6 +330,9 @@ fn unwrap_cp<R>(
                 let fault_msg = std::str::from_utf8(fault_msg_raw.as_bytes()).unwrap();
                 panic!("coprocessor fault: {:?}", fault_msg);
             }
+            _ => {
+                panic!("unknown error");
+            }
         },
     }
 }
