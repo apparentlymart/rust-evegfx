@@ -6,6 +6,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
+use evegfx::config;
 use evegfx::display_list::Builder;
 use evegfx::interface::Interface;
 use evegfx::memory::region::MemoryRegion;
@@ -15,26 +16,25 @@ use serial_embedded_hal::{PortSettings, Serial};
 use spidriver::SPIDriver;
 use std::path::Path;
 
-const GAMEDUINO_HDMI_720P: evegfx::graphics_mode::EVEGraphicsTimings =
-    evegfx::graphics_mode::EVEGraphicsTimings {
-        sysclk_freq: evegfx::graphics_mode::ClockFrequency::F72MHz,
-        pclk_div: 1,
-        pclk_pol: evegfx::graphics_mode::ClockPolarity::RisingEdge,
-        horiz: evegfx::graphics_mode::EVEGraphicsModeDimension {
-            total: 1650,
-            offset: 260,
-            visible: 1280,
-            sync_start: 40,
-            sync_end: 0,
-        },
-        vert: evegfx::graphics_mode::EVEGraphicsModeDimension {
-            total: 750,
-            offset: 25,
-            visible: 720,
-            sync_start: 5,
-            sync_end: 0,
-        },
-    };
+const GAMEDUINO_HDMI_720P: config::VideoTimings = config::VideoTimings {
+    sysclk_freq: config::ClockFrequency::F72MHz,
+    pclk_div: 1,
+    pclk_pol: config::ClockPolarity::RisingEdge,
+    horiz: config::VideoTimingDimension {
+        total: 1650,
+        offset: 260,
+        visible: 1280,
+        sync_start: 40,
+        sync_end: 0,
+    },
+    vert: config::VideoTimingDimension {
+        total: 750,
+        offset: 25,
+        visible: 720,
+        sync_start: 5,
+        sync_end: 0,
+    },
+};
 
 fn main() {
     println!("Hello, world!");
@@ -102,11 +102,11 @@ fn main() {
     //show_current_dl(&mut ll);
     //return;
 
-    const TIMINGS: evegfx::graphics_mode::EVEGraphicsTimings = GAMEDUINO_HDMI_720P;
+    const TIMINGS: config::VideoTimings = GAMEDUINO_HDMI_720P;
 
     //let mut eve = evegfx::BT815::new(eve_interface);
     let mut eve = EVE::new(evegfx::BT815, eve_interface);
-    eve.start_system_clock(evegfx::init::EVEClockSource::Internal, TIMINGS)
+    eve.start_system_clock(config::ClockSource::Internal, &TIMINGS)
         .unwrap();
     println!("Waiting for EVE boot...");
     let booted = eve.poll_for_boot(50).unwrap();
@@ -116,11 +116,11 @@ fn main() {
     }
 
     println!("Configuring video pins...");
-    eve.configure_video_pins(evegfx::graphics_mode::EVERGBElectricalMode {
-        channel_bits: (8, 8, 8),
-        dither: false,
-        pclk_spread: true,
-    })
+    eve.configure_video_pins(
+        config::RGBElectricalMode::new()
+            .channel_bits(8, 8, 8)
+            .pclk_spread(true),
+    )
     .unwrap();
     println!("Sending initial display list...");
     eve.new_display_list(|b| {
@@ -149,7 +149,7 @@ fn main() {
     })
     .unwrap();
     println!("Activating the pixel clock...");
-    eve.start_video(TIMINGS).unwrap();
+    eve.start_video(&TIMINGS).unwrap();
 
     println!("Starting coprocessor...");
     let cp = eve.coprocessor_polling().unwrap();

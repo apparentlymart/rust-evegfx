@@ -1,10 +1,9 @@
 #![no_std]
 
 pub mod commands;
+pub mod config;
 pub mod display_list;
 pub mod graphics;
-pub mod graphics_mode;
-pub mod init;
 pub mod interface;
 pub mod low_level;
 pub mod memory;
@@ -47,6 +46,26 @@ use models::Model;
 
 /// The main type for this crate, providing a high-level API to an EVE chip
 /// in terms of a low-level, platform-specific interface.
+///
+/// In order to interact with a real EVE chip you'll need to first select
+/// an implementation of [`Interface`](interface::Interface) which you'll
+/// access the chip through. This will typically be an adapter to the API
+/// hardware for your platform. You can pass that interface object, along
+/// with a selected model, to this type's constructor.
+///
+/// After instantiating an `EVE` object, the first step would typically
+/// be to initialize it using its various initialization functions.
+///
+/// Since there are no real interface implementations in this create, the
+/// following example just supposes there's already an interface in scope
+/// as the variable name `ei`:
+///
+/// ```rust
+/// # evegfx::interface::fake::interface_example(|mut ei| {
+/// use evegfx::EVE;
+/// let eve = EVE::new(evegfx::BT815, ei);
+/// # })
+/// ```
 pub struct EVE<M: Model, I: Interface> {
     pub(crate) ll: low_level::LowLevel<M, I>,
 }
@@ -105,10 +124,10 @@ impl<M: Model, I: Interface> EVE<M, I> {
     /// and activate the pixel clock.
     pub fn start_system_clock(
         &mut self,
-        source: init::EVEClockSource,
-        mode: graphics_mode::EVEGraphicsTimings,
+        source: config::ClockSource,
+        video: &config::VideoTimings,
     ) -> Result<(), I::Error> {
-        init::activate_system_clock(self, source, mode)
+        config::activate_system_clock(self, source, video)
     }
 
     /// Busy-waits while polling the EVE ID for its ID register. Once it
@@ -119,14 +138,14 @@ impl<M: Model, I: Interface> EVE<M, I> {
     /// correctly, or if it's failing boot in some other way then this
     /// function will poll forever.
     pub fn poll_for_boot(&mut self, poll_limit: u32) -> Result<bool, I::Error> {
-        init::poll_for_boot(self, poll_limit)
+        config::poll_for_boot(self, poll_limit)
     }
 
     pub fn configure_video_pins(
         &mut self,
-        mode: graphics_mode::EVERGBElectricalMode,
+        mode: &config::RGBElectricalMode,
     ) -> Result<(), I::Error> {
-        init::configure_video_pins(self, mode)
+        config::configure_video_pins(self, mode)
     }
 
     /// Configures registers to achieve a particular graphics mode wLowLevel
@@ -143,8 +162,8 @@ impl<M: Model, I: Interface> EVE<M, I> {
     ///
     /// If this function succeeds then the display will be active before it
     /// returns, assuming that the chip itself was already activated.
-    pub fn start_video(&mut self, c: graphics_mode::EVEGraphicsTimings) -> Result<(), I::Error> {
-        init::activate_pixel_clock(self, c)
+    pub fn start_video(&mut self, c: &config::VideoTimings) -> Result<(), I::Error> {
+        config::activate_pixel_clock(self, c)
     }
 
     pub fn new_display_list<

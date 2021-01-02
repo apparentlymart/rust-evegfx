@@ -26,7 +26,7 @@ type ExampleCoprocessor<'a> =
 /// This is only here to make it easy to write testable code examples in the
 /// crate documentation.
 #[doc(hidden)]
-pub fn interface_example(f: impl FnOnce(ExampleInterface)) {
+pub fn interface_example<R>(f: impl FnOnce(ExampleInterface) -> R) -> R {
     const KB: usize = 1024;
     let mut mem: [u8; 1024 * KB] = [0; 1024 * KB];
     let mut regs: [u32; 1 * KB] = [0; 1 * KB];
@@ -42,7 +42,7 @@ pub fn interface_example(f: impl FnOnce(ExampleInterface)) {
         .with_display_list_ram(&mut dl[..])
         .with_cmd_ram(&mut cmd[..])
         .with_register_file(&mut regs[..]);
-    f(ei);
+    f(ei)
 }
 
 /// Run the given function with a ready-to-use instance of `Coprocessor`
@@ -51,10 +51,10 @@ pub fn interface_example(f: impl FnOnce(ExampleInterface)) {
 /// This is only here to make it easy to write testable code examples in the
 /// crate documentation.
 #[doc(hidden)]
-pub fn coprocessor_example(f: impl FnOnce(ExampleCoprocessor)) {
+pub fn coprocessor_example<R>(f: impl FnOnce(ExampleCoprocessor) -> R) -> R {
     interface_example(|ei| {
         let cp = Coprocessor::new_polling(ei).unwrap();
-        f(cp);
+        f(cp)
     })
 }
 
