@@ -216,6 +216,17 @@ impl Default for BitmapSwizzle {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[repr(u8)]
+pub enum BlendFunc {
+    Zero = 0,
+    One = 1,
+    SrcAlpha = 2,
+    DstAlpha = 3,
+    OneMinusSrcAlpha = 4,
+    OneMinusDstAlpha = 5,
+}
+
 /// A matrix coefficient for use with the bitmap transform matrix.
 #[derive(Copy, Clone, PartialEq)]
 pub struct MatrixCoeff(pub(crate) u32);

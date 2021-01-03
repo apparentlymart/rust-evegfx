@@ -166,6 +166,10 @@ impl DLCmd {
         OpCode::BITMAP_TRANSFORM_F.build(coeff.to_raw())
     }
 
+    pub const fn blend_func(src: options::BlendFunc, dst: options::BlendFunc) -> Self {
+        OpCode::BLEND_FUNC.build((src as u32) << 3 | dst as u32)
+    }
+
     pub const fn clear(color: bool, stencil: bool, tag: bool) -> Self {
         OpCode::CLEAR.build(
             if color { 0b100 } else { 0b000 }
@@ -366,6 +370,14 @@ pub trait Builder: Sized {
         self.append_command(DLCmd::bitmap_transform_f(matrix.1 .2))
     }
 
+    fn blend_func(
+        &mut self,
+        src: options::BlendFunc,
+        dst: options::BlendFunc,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::blend_func(src, dst))
+    }
+
     fn clear(&mut self, color: bool, stencil: bool, tag: bool) -> Result<(), Self::Error> {
         self.append_command(DLCmd::clear(color, stencil, tag))
     }
@@ -507,6 +519,7 @@ enum OpCode {
     BITMAP_TRANSFORM_D = 0x18,
     BITMAP_TRANSFORM_E = 0x19,
     BITMAP_TRANSFORM_F = 0x1A,
+    BLEND_FUNC = 0x0b,
     CLEAR = 0x26,
     CLEAR_COLOR_RGB = 0x02,
     CLEAR_COLOR_A = 0x0F,
@@ -705,6 +718,13 @@ mod tests {
         assert_eq!(
             DLCmd::bitmap_transform_f(options::MatrixCoeff::new_8_8(2, 3)),
             DLCmd::from_raw(0x1a000203)
+        );
+        assert_eq!(
+            DLCmd::blend_func(
+                options::BlendFunc::SrcAlpha,
+                options::BlendFunc::OneMinusDstAlpha
+            ),
+            DLCmd::from_raw(0x0b000015)
         );
     }
 }
