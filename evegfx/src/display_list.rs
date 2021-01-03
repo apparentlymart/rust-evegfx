@@ -233,6 +233,7 @@ impl DLCmd {
 /// Implementers usually implement only `append_raw_command`, and take the
 /// default implementations of all of the other methods.
 pub trait Builder: Sized {
+    type Model: crate::models::Model;
     type Error;
 
     fn append_raw_command(&mut self, raw: u32) -> Result<(), Self::Error>;
@@ -313,7 +314,10 @@ pub trait Builder: Sized {
         self.append_command(DLCmd::bitmap_swizzle(swizzle))
     }
 
-    fn bitmap_source<R: MemoryRegion + MainMem>(&mut self, ptr: Ptr<R>) -> Result<(), Self::Error> {
+    fn bitmap_source(
+        &mut self,
+        ptr: Ptr<<<Self as Builder>::Model as crate::models::Model>::MainMem>,
+    ) -> Result<(), Self::Error> {
         self.append_command(DLCmd::bitmap_source(ptr))
     }
 
@@ -382,7 +386,10 @@ pub trait Builder: Sized {
         self.append_command(DLCmd::blend_func(src, dst))
     }
 
-    fn call<R: crate::memory::DisplayListMem>(&mut self, addr: Ptr<R>) -> Result<(), Self::Error> {
+    fn call(
+        &mut self,
+        addr: Ptr<<<Self as Builder>::Model as crate::models::Model>::DisplayListMem>,
+    ) -> Result<(), Self::Error> {
         self.append_command(DLCmd::call(addr))
     }
 
@@ -482,6 +489,7 @@ impl<'a, W: Builder> JustBuilder<'a, W> {
 
 impl<'a, W: Builder> Builder for JustBuilder<'a, W> {
     type Error = W::Error;
+    type Model = W::Model;
 
     fn append_raw_command(&mut self, raw: u32) -> core::result::Result<(), W::Error> {
         self.w.append_raw_command(raw)

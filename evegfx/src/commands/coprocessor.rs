@@ -957,6 +957,7 @@ where
     W: Waiter<M, I>,
 {
     type Error = Error<M, I, W>;
+    type Model = M;
 
     fn append_raw_command(&mut self, raw: u32) -> core::result::Result<(), Self::Error> {
         self.append_raw_word(raw)

@@ -156,6 +156,7 @@ where
     I: Interface,
 {
     type Error = crate::error::Error<I>;
+    type Model = M;
 
     fn append_raw_command(&mut self, raw: u32) -> Result<(), I> {
         self.dl(DLCmd::from_raw(raw))
