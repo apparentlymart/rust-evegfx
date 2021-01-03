@@ -9,6 +9,10 @@ pub mod low_level;
 pub mod memory;
 pub mod models;
 
+mod error;
+pub use error::CoprocessorError;
+pub use error::Error;
+
 /// Constructs a [`Message`](crate::strfmt::Message) value for use with EVE
 /// coprocessor commands that support string formatting.
 ///
@@ -126,7 +130,7 @@ impl<M: Model, I: Interface> EVE<M, I> {
         &mut self,
         source: config::ClockSource,
         video: &config::VideoTimings,
-    ) -> Result<(), I::Error> {
+    ) -> Result<(), Error<I>> {
         config::activate_system_clock(self, source, video)
     }
 
@@ -137,14 +141,14 @@ impl<M: Model, I: Interface> EVE<M, I> {
     /// If the connected device isn't an EVE, or if the chip isn't connected
     /// correctly, or if it's failing boot in some other way then this
     /// function will poll forever.
-    pub fn poll_for_boot(&mut self, poll_limit: u32) -> Result<bool, I::Error> {
+    pub fn poll_for_boot(&mut self, poll_limit: u32) -> Result<bool, Error<I>> {
         config::poll_for_boot(self, poll_limit)
     }
 
     pub fn configure_video_pins(
         &mut self,
         mode: &config::RGBElectricalMode,
-    ) -> Result<(), I::Error> {
+    ) -> Result<(), Error<I>> {
         config::configure_video_pins(self, mode)
     }
 
@@ -162,16 +166,18 @@ impl<M: Model, I: Interface> EVE<M, I> {
     ///
     /// If this function succeeds then the display will be active before it
     /// returns, assuming that the chip itself was already activated.
-    pub fn start_video(&mut self, c: &config::VideoTimings) -> Result<(), I::Error> {
+    pub fn start_video(&mut self, c: &config::VideoTimings) -> Result<(), Error<I>> {
         config::activate_pixel_clock(self, c)
     }
 
     pub fn new_display_list<
-        F: FnOnce(&mut display_list::JustBuilder<low_level::LowLevel<M, I>>) -> Result<(), I::Error>,
+        F: FnOnce(
+            &mut display_list::JustBuilder<low_level::LowLevel<M, I>>,
+        ) -> Result<(), error::Error<I>>,
     >(
         &mut self,
         f: F,
-    ) -> Result<(), I::Error> {
+    ) -> Result<(), error::Error<I>> {
         self.ll.dl_reset();
         {
             let mut builder = display_list::just_builder(&mut self.ll);
@@ -192,7 +198,7 @@ impl<M: Model, I: Interface> EVE<M, I> {
     pub fn coprocessor<W: commands::waiter::Waiter<M, I>>(
         self,
         waiter: W,
-    ) -> Result<commands::Coprocessor<M, I, W>, commands::Error<I::Error, W::Error>> {
+    ) -> commands::Result<commands::Coprocessor<M, I, W>, M, I, W> {
         let ei = self.ll.take_interface();
         commands::Coprocessor::new(ei, waiter)
     }

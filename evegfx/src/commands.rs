@@ -58,6 +58,9 @@ mod tests {
                 Error::Fault => {
                     std::panic!("coprocessor fault");
                 }
+                Error::Unsupported => {
+                    std::panic!("unsupported feature");
+                }
             },
         }
     }

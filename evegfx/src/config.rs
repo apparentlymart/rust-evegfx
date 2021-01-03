@@ -3,6 +3,7 @@
 //! The types in this package are used as arguments for some of the methods
 //! of [`EVE`](super::EVE).
 
+use crate::error::Error;
 use crate::interface::Interface;
 use crate::models::Model;
 use crate::EVE;
@@ -170,14 +171,14 @@ pub(crate) fn activate_system_clock<M: Model, I: Interface>(
     eve: &mut EVE<M, I>,
     source: ClockSource,
     video: &VideoTimings,
-) -> Result<(), I::Error> {
+) -> Result<(), Error<I>> {
     use crate::host_commands::HostCmd::*;
 
     let ll = &mut eve.ll;
 
     {
         let ei = ll.borrow_interface();
-        ei.reset()?;
+        crate::low_level::LowLevel::<M, I>::result(ei.reset())?
     };
 
     // Just in case the system was already activated before we were
@@ -218,7 +219,7 @@ pub(crate) fn activate_system_clock<M: Model, I: Interface>(
 pub(crate) fn poll_for_boot<M: Model, I: Interface>(
     eve: &mut EVE<M, I>,
     poll_limit: u32,
-) -> Result<bool, I::Error> {
+) -> Result<bool, Error<I>> {
     use crate::registers::Register::*;
     let ll = &mut eve.ll;
     let mut poll = 0;
@@ -242,7 +243,7 @@ pub(crate) fn poll_for_boot<M: Model, I: Interface>(
 pub(crate) fn activate_pixel_clock<M: Model, I: Interface>(
     eve: &mut EVE<M, I>,
     c: &VideoTimings,
-) -> Result<(), I::Error> {
+) -> Result<(), Error<I>> {
     use crate::registers::Register::*;
     const DIM_MASK: u16 = DIMENSION_MASK;
 
@@ -273,7 +274,7 @@ pub(crate) fn activate_pixel_clock<M: Model, I: Interface>(
 pub(crate) fn configure_video_pins<M: Model, I: Interface>(
     eve: &mut EVE<M, I>,
     _mode: &RGBElectricalMode,
-) -> Result<(), I::Error> {
+) -> Result<(), Error<I>> {
     // TODO: Actually respect the mode settings. For now, just hard-coded.
     use crate::registers::Register::*;
 

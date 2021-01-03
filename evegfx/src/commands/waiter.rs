@@ -71,7 +71,7 @@ impl<M: Model, I: Interface> PollingWaiter<M, I> {
 }
 
 impl<M: Model, I: Interface> Waiter<M, I> for PollingWaiter<M, I> {
-    type Error = I::Error;
+    type Error = crate::error::Error<I>;
 
     fn wait_for_space(
         &mut self,

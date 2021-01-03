@@ -5,6 +5,7 @@ pub(crate) mod host_commands;
 pub(crate) mod registers;
 
 use crate::display_list::DLCmd;
+use crate::error::Error;
 use crate::interface::Interface;
 use crate::memory::{HostAccessible, MemoryRegion, Ptr};
 use crate::models::Model;
@@ -15,6 +16,13 @@ pub use registers::Register;
 
 #[doc(inline)]
 pub use host_commands::HostCmd;
+
+/// The result type for operations on a `LowLevel` associated with a
+/// particular interface.
+///
+/// The error type for this result type is always
+/// [`Error`](crate::error::Error).
+pub type Result<R, I> = core::result::Result<R, Error<I>>;
 
 /// `LowLevel` is a low-level interface to EVE controllers which matches
 /// the primitive operations used in Programmers Guides for the various
@@ -47,6 +55,10 @@ impl<M: Model, I: Interface> LowLevel<M, I> {
         }
     }
 
+    pub(crate) fn result<R>(r: core::result::Result<R, I::Error>) -> Result<R, I> {
+        r.map_err(|e| Error::Interface(e))
+    }
+
     /// Consumes the `LowLevel` object and returns the interface it was
     /// originally created with.
     pub fn take_interface(self) -> I {
@@ -57,53 +69,49 @@ impl<M: Model, I: Interface> LowLevel<M, I> {
         &mut self.raw
     }
 
-    pub fn wr8<R: HostAccessible>(&mut self, addr: Ptr<R>, v: u8) -> Result<(), I::Error> {
+    pub fn wr8<R: HostAccessible>(&mut self, addr: Ptr<R>, v: u8) -> Result<(), I> {
         let data: [u8; 1] = [v];
-        self.raw.write(addr.to_raw(), &data)
+        Self::result(self.raw.write(addr.to_raw(), &data))
     }
 
-    pub fn wr16<R: HostAccessible>(&mut self, addr: Ptr<R>, v: u16) -> Result<(), I::Error> {
+    pub fn wr16<R: HostAccessible>(&mut self, addr: Ptr<R>, v: u16) -> Result<(), I> {
         let data: [u8; 2] = [v as u8, (v >> 8) as u8];
-        self.raw.write(addr.to_raw(), &data)
+        Self::result(self.raw.write(addr.to_raw(), &data))
     }
 
-    pub fn wr32<R: HostAccessible>(&mut self, addr: Ptr<R>, v: u32) -> Result<(), I::Error> {
+    pub fn wr32<R: HostAccessible>(&mut self, addr: Ptr<R>, v: u32) -> Result<(), I> {
         //let data: [u8; 4] = [(v >> 24) as u8, (v >> 16) as u8, (v >> 8) as u8, v as u8];
         let data: [u8; 4] = [v as u8, (v >> 8) as u8, (v >> 16) as u8, (v >> 24) as u8];
-        self.raw.write(addr.to_raw(), &data)
+        Self::result(self.raw.write(addr.to_raw(), &data))
     }
 
-    pub fn wr8s<R: HostAccessible>(&mut self, addr: Ptr<R>, v: &[u8]) -> Result<(), I::Error> {
-        self.raw.write(addr.to_raw(), v)
+    pub fn wr8s<R: HostAccessible>(&mut self, addr: Ptr<R>, v: &[u8]) -> Result<(), I> {
+        Self::result(self.raw.write(addr.to_raw(), v))
     }
 
-    pub fn rd8<R: HostAccessible>(&mut self, addr: Ptr<R>) -> Result<u8, I::Error> {
+    pub fn rd8<R: HostAccessible>(&mut self, addr: Ptr<R>) -> Result<u8, I> {
         let mut data: [u8; 1] = [0; 1];
-        self.raw.read(addr.to_raw(), &mut data)?;
+        Self::result(self.raw.read(addr.to_raw(), &mut data))?;
         Ok(data[0])
     }
 
-    pub fn rd16<R: HostAccessible>(&mut self, addr: Ptr<R>) -> Result<u16, I::Error> {
+    pub fn rd16<R: HostAccessible>(&mut self, addr: Ptr<R>) -> Result<u16, I> {
         let mut data: [u8; 2] = [0; 2];
-        self.raw.read(addr.to_raw(), &mut data)?;
+        Self::result(self.raw.read(addr.to_raw(), &mut data))?;
         Ok((data[0] as u16) | (data[1] as u16) << 8)
     }
 
-    pub fn rd32<R: HostAccessible>(&mut self, addr: Ptr<R>) -> Result<u32, I::Error> {
+    pub fn rd32<R: HostAccessible>(&mut self, addr: Ptr<R>) -> Result<u32, I> {
         let mut data: [u8; 4] = [0; 4];
-        self.raw.read(addr.to_raw(), &mut data)?;
+        Self::result(self.raw.read(addr.to_raw(), &mut data))?;
         Ok((data[0] as u32)
             | (data[1] as u32) << 8
             | (data[2] as u32) << 16
             | (data[3] as u32) << 24)
     }
 
-    pub fn rd8s<R: HostAccessible>(
-        &mut self,
-        addr: Ptr<R>,
-        into: &mut [u8],
-    ) -> Result<(), I::Error> {
-        self.raw.read(addr.to_raw(), into)
+    pub fn rd8s<R: HostAccessible>(&mut self, addr: Ptr<R>, into: &mut [u8]) -> Result<(), I> {
+        Self::result(self.raw.read(addr.to_raw(), into))
     }
 
     pub fn main_mem_ptr(&self, offset: u32) -> Ptr<M::MainMem> {
@@ -114,15 +122,15 @@ impl<M: Model, I: Interface> LowLevel<M, I> {
         reg.ptr::<M>()
     }
 
-    pub fn host_command(&mut self, cmd: HostCmd, a0: u8, a1: u8) -> Result<(), I::Error> {
-        self.raw.host_cmd(cmd.to_raw(), a0, a1)
+    pub fn host_command(&mut self, cmd: HostCmd, a0: u8, a1: u8) -> Result<(), I> {
+        Self::result(self.raw.host_cmd(cmd.to_raw(), a0, a1))
     }
 
     pub fn dl_reset(&mut self) {
         self.next_dl = M::DisplayListMem::ptr(0);
     }
 
-    pub fn dl(&mut self, cmd: DLCmd) -> Result<(), I::Error> {
+    pub fn dl(&mut self, cmd: DLCmd) -> Result<(), I> {
         self.wr32(self.next_dl, cmd.into())?;
 
         let mut next_addr = self.next_dl.to_raw() + DLCmd::LENGTH;
@@ -142,14 +150,18 @@ impl<M: Model, I: Interface> LowLevel<M, I> {
     }
 }
 
-impl<M: Model, I: Interface> crate::display_list::Builder for LowLevel<M, I> {
-    type Error = I::Error;
+impl<M, I> crate::display_list::Builder for LowLevel<M, I>
+where
+    M: Model,
+    I: Interface,
+{
+    type Error = crate::error::Error<I>;
 
-    fn append_raw_command(&mut self, raw: u32) -> core::result::Result<(), I::Error> {
+    fn append_raw_command(&mut self, raw: u32) -> Result<(), I> {
         self.dl(DLCmd::from_raw(raw))
     }
 
-    fn append_command(&mut self, cmd: DLCmd) -> core::result::Result<(), I::Error> {
+    fn append_command(&mut self, cmd: DLCmd) -> Result<(), I> {
         self.dl(cmd)
     }
 }

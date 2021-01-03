@@ -279,42 +279,17 @@ fn main() {
 
 extern crate serial_core;
 
-fn unwrap_cp<R>(
-    cp: &mut evegfx::commands::Coprocessor<
-        evegfx::BT815,
-        LogInterface<
-            evegfx_spidriver::EVESPIDriverInterface<
-                serial_embedded_hal::Tx,
-                serial_embedded_hal::Rx,
-            >,
-        >,
-        LogWaiter<
-            evegfx::BT815,
-            LogInterface<
-                evegfx_spidriver::EVESPIDriverInterface<
-                    serial_embedded_hal::Tx,
-                    serial_embedded_hal::Rx,
-                >,
-            >,
-            evegfx::commands::waiter::PollingWaiter<
-                evegfx::BT815,
-                LogInterface<
-                    evegfx_spidriver::EVESPIDriverInterface<
-                        serial_embedded_hal::Tx,
-                        serial_embedded_hal::Rx,
-                    >,
-                >,
-            >,
-        >,
-    >,
-    r: Result<
-        R,
-        evegfx::commands::Error<
-            spidriver::Error<serial_core::Error, serial_core::Error>,
-            spidriver::Error<serial_core::Error, serial_core::Error>,
-        >,
-    >,
-) -> R {
+fn unwrap_cp<R, M, I, W>(
+    cp: &mut evegfx::commands::Coprocessor<M, I, W>,
+    r: Result<R, evegfx::commands::Error<M, I, W>>,
+) -> R
+where
+    M: evegfx::models::Model + evegfx::models::WithCommandErrMem,
+    I: evegfx::interface::Interface,
+    W: evegfx::commands::waiter::Waiter<M, I>,
+    I::Error: std::fmt::Debug,
+    W::Error: std::fmt::Debug,
+{
     match r {
         Ok(r) => r,
         Err(err) => match err {

@@ -10,8 +10,7 @@ use crate::registers::Register;
 
 /// The result type for coprocessor operations, where the error type is always
 /// [`Error`](Error).
-pub type Result<T, M, I, W> =
-    core::result::Result<T, Error<<I as Interface>::Error, <W as Waiter<M, I>>::Error>>;
+pub type Result<T, M, I, W> = core::result::Result<T, Error<M, I, W>>;
 
 /// An interface to the command ring buffer for the EVE chip's coprocessor
 /// component.
@@ -498,13 +497,16 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
     fn block_for_output_values<F, R>(&mut self, f: F) -> Result<R, M, I, W>
     where
         R: Sized,
-        F: FnOnce(&mut LowLevel<M, I>, Ptr<M::DisplayListMem>) -> core::result::Result<R, I::Error>,
+        F: FnOnce(
+            &mut LowLevel<M, I>,
+            Ptr<M::DisplayListMem>,
+        ) -> core::result::Result<R, crate::error::Error<I>>,
     {
         let ptr_reg = crate::registers::Register::CMD_WRITE;
         let stopped = self.stop_stream()?;
         let write_addr = {
             let ll = self.borrow_low_level(&stopped);
-            Self::interface_result(ll.rd32(M::reg_ptr(ptr_reg)))?
+            ll.rd32(M::reg_ptr(ptr_reg))?
         };
 
         // wait for the coprocessor to catch up
@@ -512,11 +514,11 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
 
         let result = {
             let ll = self.borrow_low_level(&stopped);
-            Self::interface_result(f(ll, Ptr::new(write_addr)))
+            f(ll, Ptr::new(write_addr))
         };
 
         self.start_stream(stopped)?;
-        result
+        Error::general_result(result)
     }
 }
 
@@ -534,8 +536,8 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
 
         // We'll pulse the reset signal for the coprocessor just to make sure
         // we're finding it in a known good state.
-        Self::interface_result(ll.wr8(ll.reg_ptr(Register::CPURESET), 0b001))?;
-        Self::interface_result(ll.wr8(ll.reg_ptr(Register::CPURESET), 0b000))?;
+        ll.wr8(ll.reg_ptr(Register::CPURESET), 0b001)?;
+        ll.wr8(ll.reg_ptr(Register::CPURESET), 0b000)?;
 
         let mut ret = Self {
             ll: ll,
@@ -620,8 +622,7 @@ impl<M: Model, I: Interface, W: Waiter<M, I>> Coprocessor<M, I, W> {
 
     // Update our internal records to match the state of the remote chip.
     fn synchronize(&mut self, _stopped: &StoppedStream) -> Result<(), M, I, W> {
-        let known_space =
-            Self::interface_result(self.ll.rd16(self.ll.reg_ptr(Register::CMDB_SPACE)))?;
+        let known_space = self.ll.rd16(self.ll.reg_ptr(Register::CMDB_SPACE))?;
         self.known_space = known_space;
         Ok(())
     }
@@ -838,7 +839,7 @@ where
             let into = raw.as_storage_bytes();
             let ll = self.borrow_low_level(&stopped);
             let addr = <<M as WithCommandErrMem>::CommandErrMem as MemoryRegion>::ptr(0);
-            Self::interface_result(ll.rd8s(addr, into))?;
+            ll.rd8s(addr, into)?;
         }
         self.start_stream(stopped)?;
         Ok(FaultMessage::new(raw))
@@ -892,41 +893,8 @@ where
     }
 }
 
-/// Error type for coprocessor operations.
-///
-/// This distinguishes between errors from the underlying interface to the
-/// hardware, errors returned by the "waiter" while waiting for more buffer
-/// space, and coprocessor faults reported by the EVE chip itself.
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum Error<IErr, WErr> {
-    /// Errors encountered when sending or recieving data from the EVE chip.
-    ///
-    /// The wrapped error type for this variant is the error type for whichever
-    /// [`Interface`](crate::Interface) implementation you are using.
-    Interface(IErr),
-
-    /// Errors encountered while waiting for more space in the ring buffer.
-    ///
-    /// The wrapped error type for this variant is the error type for whichever
-    /// [`Waiter`](super::waiter::Waiter) implementation you are using. If you
-    /// are using the default polling waiter then the error will be of the
-    /// error type associated with your chosen [`Interface`](crate::Interface).
-    Waiter(WErr),
-
-    /// Indicates that the coprocessor itself reported a fault.
-    ///
-    /// If you are using an EVE chip that supports fault messages, you can call
-    /// [`Coprocessor::coprocessor_fault_msg`](Coprocessor::coprocessor_fault_msg)
-    /// to get an error string from the EVE chip.
-    ///
-    /// The coprocessor typically runs asynchronously from the host processor,
-    /// and so a fault error may be returned from some later method call than
-    /// the one which caused the fault. This error variant therefore indicates
-    /// only that the coprocessor is blocked by being the fault state, not that
-    /// the most recent method call put it in that state.
-    Fault,
-}
+#[doc(inline)]
+pub use crate::error::CoprocessorError as Error;
 
 /// Represents a coprocessor fault message retrieved from the EVE device.
 #[derive(Debug, Clone)]
@@ -988,7 +956,7 @@ where
     I: Interface,
     W: Waiter<M, I>,
 {
-    type Error = Error<I::Error, W::Error>;
+    type Error = Error<M, I, W>;
 
     fn append_raw_command(&mut self, raw: u32) -> core::result::Result<(), Self::Error> {
         self.append_raw_word(raw)
