@@ -1,6 +1,7 @@
 //! Representations of display list commands.
 
 pub mod options;
+pub mod shape_builder;
 
 use crate::graphics::{Vertex2F, Vertex2II, RGB, RGBA};
 use crate::memory::{MainMem, MemoryRegion, Ptr};
@@ -219,7 +220,7 @@ impl DLCmd {
 ///
 /// Implementers usually implement only `append_raw_command`, and take the
 /// default implementations of all of the other methods.
-pub trait Builder {
+pub trait Builder: Sized {
     type Error;
 
     fn append_raw_command(&mut self, raw: u32) -> Result<(), Self::Error>;
@@ -381,6 +382,39 @@ pub trait Builder {
 
     fn display(&mut self) -> Result<(), Self::Error> {
         self.append_command(DLCmd::DISPLAY)
+    }
+
+    /// Draw a graphics primitive of a particular type, with zero or vertices
+    /// defined in a closure.
+    ///
+    /// This is a helper wrapper around `begin`, followed by any vertices you
+    /// generate in your closure, followed by `end`.
+    fn draw(
+        &mut self,
+        prim: options::GraphicsPrimitive,
+        f: impl FnOnce(shape_builder::VertexBuilder<Self>) -> Result<(), Self::Error>,
+    ) -> Result<(), Self::Error> {
+        self.begin(prim)?;
+        let vb = shape_builder::VertexBuilder::new(self);
+        f(vb)?;
+        self.end()
+    }
+
+    /// Draw a graphics primitive of a particular type, with zero or vertices
+    /// defined in an iterator of vertices.
+    ///
+    /// This is a helper wrapper around `begin`, followed by any vertices
+    /// that the iterator produces, followed by `end`.
+    fn draw_iter(
+        &mut self,
+        prim: options::GraphicsPrimitive,
+        iter: impl core::iter::Iterator<Item = crate::graphics::Vertex2F>,
+    ) -> Result<(), Self::Error> {
+        self.begin(prim)?;
+        for v in iter {
+            self.vertex_2f(v)?;
+        }
+        self.end()
     }
 
     fn end(&mut self) -> Result<(), Self::Error> {
