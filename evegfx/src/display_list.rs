@@ -170,6 +170,10 @@ impl DLCmd {
         OpCode::BLEND_FUNC.build((src as u32) << 3 | dst as u32)
     }
 
+    pub fn call<R: crate::memory::DisplayListMem>(ptr: Ptr<R>) -> Self {
+        OpCode::CALL.build(ptr.to_raw_offset())
+    }
+
     pub const fn clear(color: bool, stencil: bool, tag: bool) -> Self {
         OpCode::CLEAR.build(
             if color { 0b100 } else { 0b000 }
@@ -378,6 +382,10 @@ pub trait Builder: Sized {
         self.append_command(DLCmd::blend_func(src, dst))
     }
 
+    fn call<R: crate::memory::DisplayListMem>(&mut self, addr: Ptr<R>) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::call(addr))
+    }
+
     fn clear(&mut self, color: bool, stencil: bool, tag: bool) -> Result<(), Self::Error> {
         self.append_command(DLCmd::clear(color, stencil, tag))
     }
@@ -523,6 +531,7 @@ enum OpCode {
     CLEAR = 0x26,
     CLEAR_COLOR_RGB = 0x02,
     CLEAR_COLOR_A = 0x0F,
+    CALL = 0x1d,
     DISPLAY = 0x00,
     END = 0x21,
     MACRO = 0x25,
@@ -544,6 +553,7 @@ impl OpCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::testing::DisplayListMem as TestDisplayListMem;
     use crate::models::testing::MainMem as TestMainMem;
 
     #[test]
@@ -725,6 +735,10 @@ mod tests {
                 options::BlendFunc::OneMinusDstAlpha
             ),
             DLCmd::from_raw(0x0b000015)
+        );
+        assert_eq!(
+            DLCmd::call(TestDisplayListMem::ptr(4)),
+            DLCmd::from_raw(0x1d000004)
         );
     }
 }
