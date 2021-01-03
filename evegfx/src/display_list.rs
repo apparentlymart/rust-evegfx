@@ -19,6 +19,7 @@ impl DLCmd {
     pub const DISPLAY: Self = OpCode::DISPLAY.build(0);
     pub const END: Self = OpCode::END.build(0);
     pub const CLEAR_ALL: Self = Self::clear(true, true, true);
+    pub const NOP: Self = OpCode::NOP.build(0);
 
     /// Creates a command from the raw command word given as a `u32`. It's
     /// the caller's responsibility to ensure that it's a valid encoding of
@@ -206,9 +207,23 @@ impl DLCmd {
         Self::END
     }
 
+    pub fn jump<R: crate::memory::DisplayListMem>(ptr: Ptr<R>) -> Self {
+        OpCode::JUMP.build(ptr.to_raw_offset())
+    }
+
     pub const fn command_from_macro(num: u8) -> Self {
         const MASK: u32 = 0b1;
         OpCode::MACRO.build(num as u32 & MASK)
+    }
+
+    pub fn nop() -> Self {
+        Self::NOP
+    }
+
+    /// Defines the address in main memory for the palette data for index-based
+    /// bitmaps.
+    pub fn palette_source<R: MemoryRegion + MainMem>(ptr: Ptr<R>) -> Self {
+        OpCode::PALETTE_SOURCE.build(ptr.to_raw())
     }
 
     pub const fn point_size(size: u16) -> Self {
@@ -460,6 +475,24 @@ pub trait Builder: Sized {
         self.append_command(DLCmd::command_from_macro(num))
     }
 
+    fn jump(
+        &mut self,
+        addr: Ptr<<<Self as Builder>::Model as crate::models::Model>::DisplayListMem>,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::jump(addr))
+    }
+
+    fn nop(&mut self) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::NOP)
+    }
+
+    fn palette_source(
+        &mut self,
+        ptr: Ptr<<<Self as Builder>::Model as crate::models::Model>::MainMem>,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::palette_source(ptr))
+    }
+
     fn point_size(&mut self, size: u16) -> Result<(), Self::Error> {
         self.append_command(DLCmd::point_size(size))
     }
@@ -536,16 +569,39 @@ enum OpCode {
     BITMAP_TRANSFORM_E = 0x19,
     BITMAP_TRANSFORM_F = 0x1A,
     BLEND_FUNC = 0x0b,
+    CALL = 0x1d,
+    CELL = 0x06,
     CLEAR = 0x26,
     CLEAR_COLOR_RGB = 0x02,
     CLEAR_COLOR_A = 0x0F,
-    CALL = 0x1d,
+    CLEAR_STENCIL = 0x11,
+    CLEAR_TAG = 0x12,
+    COLOR_A = 0x10,
+    COLOR_MASK = 0x20,
+    COLOR_RGB = 0x04,
     DISPLAY = 0x00,
     END = 0x21,
+    JUMP = 0x1e,
+    LINE_WIDTH = 0x0e,
     MACRO = 0x25,
+    NOP = 0x2d,
+    PALETTE_SOURCE = 0x2a,
     POINT_SIZE = 0x0d,
+    RESTORE_CONTEXT = 0x23,
+    RETURN = 0x24,
+    SAVE_CONTEXT = 0x22,
+    SCISSOR_SIZE = 0x1c,
+    SCISSOR_XY = 0x1b,
+    STENCIL_FUNC = 0x0a,
+    STENCIL_MASK = 0x13,
+    STENCIL_OP = 0x0c,
+    TAG = 0x03,
+    TAG_MASK = 0x14,
     VERTEX2F = 0b01000000,  // This opcode is packed into the two MSB
     VERTEX2II = 0b10000000, // This opcode is packed into the two MSB
+    VERTEX_FORMAT = 0x27,
+    VERTEX_TRANSLATE_X = 0x2b,
+    VERTEX_TRANSLATE_Y = 0x2c,
 }
 
 impl OpCode {
