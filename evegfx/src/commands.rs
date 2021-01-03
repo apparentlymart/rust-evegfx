@@ -10,6 +10,32 @@
 //! once they've completed initialization, because it allows streaming commands
 //! to the EVE chip with the possibility for synchronization with the display
 //! raster, and provides higher-level helpers for building display lists.
+//!
+//! ```rust
+//! # let r = evegfx::interface::fake::interface_example(|mut ei| {
+//! // "ei" is an implementation of evegfx::interface::Interface.
+//! let eve = evegfx::EVE::new(evegfx::BT815, ei);
+//! // (...do initial boot sequence for the "eve" object...)
+//! # let f = || -> Result<(), evegfx::CoprocessorError<_, _, _>> {
+//! let mut cp = eve.coprocessor_polling()?;
+//! cp.new_display_list(|cp| {
+//!     use evegfx::display_list::Builder; // so trait methods are available
+//!     use evegfx::display_list::options;
+//!     cp.clear_all()?;
+//!     cp.begin(options::GraphicsPrimitive::LineStrip);
+//!     cp.draw(options::GraphicsPrimitive::LineStrip, |mut shape| {
+//!         shape.vertex_2f((10, 10))?;
+//!         shape.vertex_2f((100, 10))?;
+//!         shape.vertex_2f((100, 100))?;
+//!         shape.vertex_2f((10, 100))?;
+//!         shape.vertex_2f((10, 10))
+//!     })?;
+//!     cp.display()
+//! })?;
+//! # Ok(()) };
+//! # f();
+//! # });
+//! ```
 
 pub(crate) mod coprocessor;
 pub mod options;
