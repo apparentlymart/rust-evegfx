@@ -180,6 +180,42 @@ impl From<BitmapHandle> for u32 {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[repr(u8)]
+pub enum BitmapSwizzleSource {
+    Zero = 0,
+    One = 1,
+    Red = 2,
+    Green = 3,
+    Blue = 4,
+    Alpha = 5,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct BitmapSwizzle {
+    pub r: BitmapSwizzleSource,
+    pub g: BitmapSwizzleSource,
+    pub b: BitmapSwizzleSource,
+    pub a: BitmapSwizzleSource,
+}
+
+impl BitmapSwizzle {
+    pub fn as_raw(&self) -> u32 {
+        (self.r as u32) << 9 | (self.g as u32) << 6 | (self.b as u32) << 3 | (self.a as u32)
+    }
+}
+
+impl Default for BitmapSwizzle {
+    fn default() -> Self {
+        Self {
+            r: BitmapSwizzleSource::Red,
+            g: BitmapSwizzleSource::Green,
+            b: BitmapSwizzleSource::Blue,
+            a: BitmapSwizzleSource::Alpha,
+        }
+    }
+}
+
 /// A matrix coefficient for use with the bitmap transform matrix.
 #[derive(Copy, Clone, PartialEq)]
 pub struct MatrixCoeff(pub(crate) u32);

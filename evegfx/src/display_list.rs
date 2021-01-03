@@ -132,6 +132,10 @@ impl DLCmd {
         OpCode::BITMAP_SOURCE.build(ptr.to_raw())
     }
 
+    pub fn bitmap_swizzle(swizzle: options::BitmapSwizzle) -> Self {
+        OpCode::BITMAP_SWIZZLE.build(swizzle.as_raw())
+    }
+
     pub fn bitmap_transform_a(coeff: impl Into<options::MatrixCoeff>) -> Self {
         let coeff: options::MatrixCoeff = coeff.into();
         OpCode::BITMAP_TRANSFORM_A.build(coeff.to_raw())
@@ -295,6 +299,10 @@ pub trait Builder: Sized {
         let pair = DLCmd::bitmap_size_pair(width, height, filter, wrap_x, wrap_y);
         self.append_command(pair.0)?;
         self.append_command(pair.1)
+    }
+
+    fn bitmap_swizzle(&mut self, swizzle: options::BitmapSwizzle) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_swizzle(swizzle))
     }
 
     fn bitmap_source<R: MemoryRegion + MainMem>(&mut self, ptr: Ptr<R>) -> Result<(), Self::Error> {
@@ -492,6 +500,7 @@ enum OpCode {
     BITMAP_SIZE = 0x08,
     BITMAP_SIZE_H = 0x29,
     BITMAP_SOURCE = 0x01,
+    BITMAP_SWIZZLE = 0x2f,
     BITMAP_TRANSFORM_A = 0x15,
     BITMAP_TRANSFORM_B = 0x16,
     BITMAP_TRANSFORM_C = 0x17,
@@ -589,6 +598,10 @@ mod tests {
         assert_eq!(
             DLCmd::bitmap_layout_pair(options::BitmapFormat::ARGB4, 1024, 768),
             (DLCmd::from_raw(0x07300100), DLCmd::from_raw(0x28000004)),
+        );
+        assert_eq!(
+            DLCmd::bitmap_swizzle(options::BitmapSwizzle::default()),
+            DLCmd::from_raw(0x2f000000 | 0b010011100101),
         );
         assert_eq!(
             DLCmd::bitmap_size_l(
