@@ -1,9 +1,10 @@
 [package]
 name = "evegfx"
 version = "0.1.0"
+
 authors = ["Martin Atkins <mart@degeneration.co.uk>"]
 edition = "2018"
 
 [dependencies]
-num_enum = "0.5.1"
-evegfx-macros = { path = "../evegfx-macros" }
+evegfx-macros = {path = "../evegfx-macros"}
+num_enum = {version = "0.5.1", default_features = false}
