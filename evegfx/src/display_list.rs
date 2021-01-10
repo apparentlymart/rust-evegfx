@@ -20,6 +20,9 @@ impl DLCmd {
     pub const END: Self = OpCode::END.build(0);
     pub const CLEAR_ALL: Self = Self::clear(true, true, true);
     pub const NOP: Self = OpCode::NOP.build(0);
+    pub const RESTORE_CONTEXT: Self = OpCode::RESTORE_CONTEXT.build(0);
+    pub const RETURN: Self = OpCode::RETURN.build(0);
+    pub const SAVE_CONTEXT: Self = OpCode::SAVE_CONTEXT.build(0);
 
     /// Creates a command from the raw command word given as a `u32`. It's
     /// the caller's responsibility to ensure that it's a valid encoding of
@@ -32,12 +35,16 @@ impl DLCmd {
         self.0
     }
 
-    pub const fn alpha_func(func: options::TestFunc, ref_val: u8) -> Self {
+    pub const fn alpha_test(func: options::TestFunc, ref_val: u8) -> Self {
         OpCode::ALPHA_FUNC.build((func as u32) << 8 | (ref_val as u32))
     }
 
     pub const fn begin(prim: options::GraphicsPrimitive) -> Self {
         OpCode::BEGIN.build(prim as u32)
+    }
+
+    pub const fn bitmap_cell(idx: u8) -> Self {
+        OpCode::CELL.build((idx & 0b111111) as u32)
     }
 
     pub const fn bitmap_ext_format(format: options::BitmapExtFormat) -> Self {
@@ -199,6 +206,27 @@ impl DLCmd {
         )
     }
 
+    pub const fn clear_stencil(v: u8) -> Self {
+        OpCode::CLEAR_STENCIL.build(v as u32)
+    }
+
+    pub const fn clear_tag(v: u8) -> Self {
+        OpCode::CLEAR_TAG.build(v as u32)
+    }
+
+    pub const fn color_alpha(alpha: u8) -> Self {
+        OpCode::COLOR_A.build(alpha as u32)
+    }
+
+    pub const fn color_mask(mask: options::ColorMask) -> Self {
+        OpCode::COLOR_MASK.build(mask.to_raw() as u32)
+    }
+
+    pub const fn color_rgb(color: RGB) -> Self {
+        OpCode::COLOR_RGB
+            .build((color.r as u32) << 16 | (color.g as u32) << 8 | (color.b as u32) << 0)
+    }
+
     pub const fn display() -> Self {
         Self::DISPLAY
     }
@@ -216,7 +244,11 @@ impl DLCmd {
         OpCode::MACRO.build(num as u32 & MASK)
     }
 
-    pub fn nop() -> Self {
+    pub const fn line_width(w: u16) -> Self {
+        OpCode::LINE_WIDTH.build((w & 0b111111111111) as u32)
+    }
+
+    pub const fn nop() -> Self {
         Self::NOP
     }
 
@@ -231,6 +263,58 @@ impl DLCmd {
         OpCode::POINT_SIZE.build(size as u32 & MASK)
     }
 
+    pub const fn restore_context() -> Self {
+        Self::RESTORE_CONTEXT
+    }
+
+    pub const fn return_from_call() -> Self {
+        Self::RETURN
+    }
+
+    pub const fn save_context() -> Self {
+        Self::SAVE_CONTEXT
+    }
+
+    pub const fn scissor_size(dims: (u16, u16)) -> Self {
+        const MASK: u32 = 0b111111111111;
+        OpCode::SCISSOR_SIZE.build(((dims.0 as u32 & MASK) << 12) | (dims.1 as u32 & MASK))
+    }
+
+    pub fn scissor_pos(pos: impl Into<crate::graphics::ScissorPos>) -> Self {
+        let pos: crate::graphics::ScissorPos = pos.into();
+        let coords = pos.coords();
+        const MASK: u32 = 0b1111111111;
+        OpCode::SCISSOR_XY.build((coords.0 as u32 & MASK) << 10 | (coords.1 as u32 & MASK))
+    }
+
+    pub fn scissor_rect_pair(rect: impl Into<crate::graphics::ScissorRect>) -> (Self, Self) {
+        let rect: crate::graphics::ScissorRect = rect.into();
+        (
+            Self::scissor_pos(rect.top_left()),
+            Self::scissor_size(rect.size()),
+        )
+    }
+
+    pub const fn stencil_test(func: options::TestFunc, ref_val: u8, mask: u8) -> Self {
+        OpCode::STENCIL_FUNC.build((func as u32) << 16 | (ref_val as u32) << 8 | (mask as u32))
+    }
+
+    pub const fn stencil_mask(mask: u8) -> Self {
+        OpCode::STENCIL_MASK.build(mask as u32)
+    }
+
+    pub const fn stencil_op(fail: options::StencilOp, pass: options::StencilOp) -> Self {
+        OpCode::STENCIL_OP.build(((fail.to_raw() as u32) << 3) | (pass.to_raw() as u32))
+    }
+
+    pub const fn tag(v: u8) -> Self {
+        OpCode::TAG.build(v as u32)
+    }
+
+    pub const fn tag_mask(update: bool) -> Self {
+        OpCode::TAG_MASK.build(if update { 1 } else { 0 })
+    }
+
     pub fn vertex_2f<Pos: Into<Vertex2F>>(pos: Pos) -> Self {
         let pos: Vertex2F = pos.into();
         OpCode::VERTEX2F.build((pos.x as u32) << 15 | (pos.y as u32))
@@ -239,6 +323,25 @@ impl DLCmd {
     pub fn vertex_2ii<Pos: Into<Vertex2II>>(pos: Pos) -> Self {
         let pos: Vertex2II = pos.into();
         OpCode::VERTEX2II.build((pos.x as u32) << 21 | (pos.y as u32) << 12)
+    }
+
+    pub const fn vertex_format(fmt: options::VertexFormat) -> Self {
+        OpCode::VERTEX_FORMAT.build(fmt.to_raw() as u32)
+    }
+
+    pub const fn vertex_translate_x(v: i16) -> Self {
+        OpCode::VERTEX_TRANSLATE_X.build(v as u16 as u32)
+    }
+
+    pub const fn vertex_translate_y(v: i16) -> Self {
+        OpCode::VERTEX_TRANSLATE_Y.build(v as u16 as u32)
+    }
+
+    pub const fn vertex_translate_pair(offset: (i16, i16)) -> (Self, Self) {
+        (
+            Self::vertex_translate_x(offset.0),
+            Self::vertex_translate_y(offset.1),
+        )
     }
 }
 
@@ -257,12 +360,16 @@ pub trait Builder: Sized {
         self.append_raw_command(cmd.as_raw())
     }
 
-    fn alpha_func(&mut self, func: options::TestFunc, ref_val: u8) -> Result<(), Self::Error> {
-        self.append_command(DLCmd::alpha_func(func, ref_val))
+    fn alpha_test(&mut self, func: options::TestFunc, ref_val: u8) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::alpha_test(func, ref_val))
     }
 
     fn begin(&mut self, prim: options::GraphicsPrimitive) -> Result<(), Self::Error> {
         self.append_command(DLCmd::begin(prim))
+    }
+
+    fn bitmap_cell(&mut self, idx: u8) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::bitmap_cell(idx))
     }
 
     fn bitmap_ext_format(&mut self, format: options::BitmapExtFormat) -> Result<(), Self::Error> {
@@ -430,6 +537,26 @@ pub trait Builder: Sized {
         self.append_command(cmds.1)
     }
 
+    fn clear_stencil(&mut self, v: u8) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::clear_stencil(v))
+    }
+
+    fn clear_tag(&mut self, v: u8) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::clear_tag(v))
+    }
+
+    fn color_rgb(&mut self, color: RGB) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::color_rgb(color))
+    }
+
+    fn color_mask(&mut self, mask: options::ColorMask) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::color_mask(mask))
+    }
+
+    fn color_alpha(&mut self, alpha: u8) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::color_alpha(alpha))
+    }
+
     fn display(&mut self) -> Result<(), Self::Error> {
         self.append_command(DLCmd::DISPLAY)
     }
@@ -482,6 +609,10 @@ pub trait Builder: Sized {
         self.append_command(DLCmd::jump(addr))
     }
 
+    fn line_width(&mut self, v: u16) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::line_width(v))
+    }
+
     fn nop(&mut self) -> Result<(), Self::Error> {
         self.append_command(DLCmd::NOP)
     }
@@ -497,12 +628,91 @@ pub trait Builder: Sized {
         self.append_command(DLCmd::point_size(size))
     }
 
+    fn restore_context(&mut self) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::RESTORE_CONTEXT)
+    }
+
+    fn return_from_call(&mut self) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::RETURN)
+    }
+
+    fn save_context(&mut self) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::SAVE_CONTEXT)
+    }
+
+    fn scissor_size(&mut self, dims: (u16, u16)) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::scissor_size(dims))
+    }
+
+    fn scissor_pos(
+        &mut self,
+        pos: impl Into<crate::graphics::ScissorPos>,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::scissor_pos(pos))
+    }
+
+    fn scissor_rect(
+        &mut self,
+        rect: impl Into<crate::graphics::ScissorRect>,
+    ) -> Result<(), Self::Error> {
+        let pair = DLCmd::scissor_rect_pair(rect);
+        self.append_command(pair.0)?;
+        self.append_command(pair.1)
+    }
+
+    fn stencil_test(
+        &mut self,
+        func: options::TestFunc,
+        ref_val: u8,
+        mask: u8,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::stencil_test(func, ref_val, mask))
+    }
+
+    fn stencil_mask(&mut self, mask: u8) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::stencil_mask(mask))
+    }
+
+    fn stencil_op(
+        &mut self,
+        fail: options::StencilOp,
+        pass: options::StencilOp,
+    ) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::stencil_op(fail, pass))
+    }
+
+    fn tag(&mut self, v: u8) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::tag(v))
+    }
+
+    fn tag_mask(&mut self, update: bool) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::tag_mask(update))
+    }
+
     fn vertex_2f<Pos: Into<Vertex2F>>(&mut self, pos: Pos) -> Result<(), Self::Error> {
         self.append_command(DLCmd::vertex_2f(pos))
     }
 
     fn vertex_2ii<Pos: Into<Vertex2II>>(&mut self, pos: Pos) -> Result<(), Self::Error> {
         self.append_command(DLCmd::vertex_2ii(pos))
+    }
+
+    fn vertex_format(&mut self, fmt: options::VertexFormat) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::vertex_format(fmt))
+    }
+
+    fn vertex_translate_x(&mut self, v: i16) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::vertex_translate_x(v))
+    }
+
+    fn vertex_translate_y(&mut self, v: i16) -> Result<(), Self::Error> {
+        self.append_command(DLCmd::vertex_translate_y(v))
+    }
+
+    fn vertex_translate(&mut self, offset: (i16, i16)) -> Result<(), Self::Error> {
+        let pair = DLCmd::vertex_translate_pair(offset);
+        self.append_command(pair.0)?;
+        self.append_command(pair.1)
     }
 }
 
@@ -623,11 +833,11 @@ mod tests {
     #[test]
     fn test_dlcmd() {
         assert_eq!(
-            DLCmd::alpha_func(options::TestFunc::Greater, 254),
+            DLCmd::alpha_test(options::TestFunc::Greater, 254),
             DLCmd::from_raw(0x090003fe),
         );
         assert_eq!(
-            DLCmd::alpha_func(options::TestFunc::Never, 0),
+            DLCmd::alpha_test(options::TestFunc::Never, 0),
             DLCmd::from_raw(0x09000000),
         );
         assert_eq!(
@@ -638,6 +848,7 @@ mod tests {
             DLCmd::begin(options::GraphicsPrimitive::Rects),
             DLCmd::from_raw(0x1f000009),
         );
+        assert_eq!(DLCmd::bitmap_cell(2), DLCmd::from_raw(0x06000002));
         assert_eq!(
             DLCmd::bitmap_ext_format(options::BitmapExtFormat::ARGB1555),
             DLCmd::from_raw(0x2e000000),
@@ -804,5 +1015,41 @@ mod tests {
             DLCmd::call(TestDisplayListMem::ptr(4)),
             DLCmd::from_raw(0x1d000004)
         );
+        assert_eq!(DLCmd::clear_stencil(5), DLCmd::from_raw(0x11000005));
+        assert_eq!(DLCmd::clear_tag(6), DLCmd::from_raw(0x12000006));
+        assert_eq!(DLCmd::color_alpha(8), DLCmd::from_raw(0x10000008));
+        assert_eq!(
+            DLCmd::color_mask(core::default::Default::default()),
+            DLCmd::from_raw(0x2000000f)
+        );
+        assert_eq!(
+            DLCmd::color_rgb(crate::graphics::RGB { r: 9, g: 8, b: 7 }),
+            DLCmd::from_raw(0x04090807)
+        );
+        assert_eq!(DLCmd::line_width(4094), DLCmd::from_raw(0x0e000ffe));
+        assert_eq!(DLCmd::scissor_size((10, 8)), DLCmd::from_raw(0x1c00a008));
+        assert_eq!(DLCmd::scissor_pos((10, 8)), DLCmd::from_raw(0x1b002808));
+        assert_eq!(
+            DLCmd::stencil_test(options::TestFunc::Greater, 254, 2),
+            DLCmd::from_raw(0x0a03fe02),
+        );
+        assert_eq!(
+            DLCmd::stencil_test(options::TestFunc::Never, 0, 4),
+            DLCmd::from_raw(0x0a000004),
+        );
+        assert_eq!(DLCmd::stencil_mask(4), DLCmd::from_raw(0x13000004));
+        assert_eq!(
+            DLCmd::stencil_op(options::StencilOp::Keep, options::StencilOp::Replace),
+            DLCmd::from_raw(0x0c00000a),
+        );
+        assert_eq!(DLCmd::tag(4), DLCmd::from_raw(0x03000004));
+        assert_eq!(DLCmd::tag_mask(true), DLCmd::from_raw(0x14000001));
+        assert_eq!(DLCmd::tag_mask(false), DLCmd::from_raw(0x14000000));
+        assert_eq!(
+            DLCmd::vertex_format(options::VertexFormat::Sixteenth),
+            DLCmd::from_raw(0x27000004)
+        );
+        assert_eq!(DLCmd::vertex_translate_x(2), DLCmd::from_raw(0x2b000002));
+        assert_eq!(DLCmd::vertex_translate_y(4), DLCmd::from_raw(0x2c000004));
     }
 }

@@ -43,6 +43,15 @@ pub type WidgetPos = Vertex2D<ForCoprocessorWidgets>;
 /// Represents bounding rectangles for coprocessor widgets.
 pub type WidgetRect = Rect<ForCoprocessorWidgets>;
 
+/// Vertex type for specifying the scissor clip region position.
+///
+/// Scissor coordinates are given in whole pixels, with a pixel range of
+/// zero to 2048.
+pub type ScissorPos = Vertex2D<ForScissorClip>;
+
+/// Represents the scissor clip region bounding rectangle.
+pub type ScissorRect = Rect<ForScissorClip>;
+
 /// Represents 2D coordinates in a specific coordinate system.
 ///
 /// Most functions that expect vertices as arguments are generic over all
@@ -66,7 +75,7 @@ impl<S: CoordinateSystem> Vertex2D<S> {
     }
 
     #[inline]
-    pub fn coords(self) -> (S::Dim, S::Dim) {
+    pub fn coords(&self) -> (S::Dim, S::Dim) {
         (self.x, self.y)
     }
 }
@@ -123,22 +132,22 @@ impl<S: CoordinateSystem> Rect<S> {
     }
 
     #[inline]
-    pub fn top_left(self) -> Vertex2D<S> {
+    pub fn top_left(&self) -> Vertex2D<S> {
         Vertex2D::new(self.x, self.y)
     }
 
     #[inline]
-    pub fn bottom_right(self) -> Vertex2D<S> {
+    pub fn bottom_right(&self) -> Vertex2D<S> {
         Vertex2D::new(self.x + self.w, self.y + self.h)
     }
 
     #[inline]
-    pub fn size(self) -> (S::Dim, S::Dim) {
+    pub fn size(&self) -> (S::Dim, S::Dim) {
         (self.w, self.h)
     }
 
     #[inline]
-    pub fn bounds(self) -> (Vertex2D<S>, Vertex2D<S>) {
+    pub fn bounds(&self) -> (Vertex2D<S>, Vertex2D<S>) {
         let top_left = Vertex2D::new(self.x, self.y);
         let bottom_right = Vertex2D::new(self.x + self.w, self.y + self.h);
         (top_left, bottom_right)
@@ -212,10 +221,7 @@ impl CoordinateSystem for Scaled {
     type Dim = i16;
 
     fn mask_value(v: Self::Dim) -> Self::Dim {
-        unsafe {
-            let raw: u16 = core::mem::transmute(v);
-            core::mem::transmute(raw & 0b11111111111111)
-        }
+        ((v as u16) & 0b11111111111111) as i16
     }
 }
 
@@ -243,5 +249,14 @@ impl CoordinateSystem for ForCoprocessorWidgets {
 
     fn mask_value(v: Self::Dim) -> Self::Dim {
         v
+    }
+}
+
+pub enum ForScissorClip {}
+impl CoordinateSystem for ForScissorClip {
+    type Dim = u16;
+
+    fn mask_value(v: Self::Dim) -> Self::Dim {
+        v & 0b111111111111
     }
 }

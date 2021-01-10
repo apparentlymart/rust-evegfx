@@ -338,7 +338,7 @@ mod tests {
             crate::display_list::options::GraphicsPrimitive::Points,
         ))
         .unwrap();
-        eve.dl(DLCmd::alpha_func(
+        eve.dl(DLCmd::alpha_test(
             crate::display_list::options::TestFunc::Never,
             3,
         ))

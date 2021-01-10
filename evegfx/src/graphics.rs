@@ -29,3 +29,9 @@ pub use pos::WidgetPos;
 
 #[doc(inline)]
 pub use pos::WidgetRect;
+
+#[doc(inline)]
+pub use pos::ScissorPos;
+
+#[doc(inline)]
+pub use pos::ScissorRect;

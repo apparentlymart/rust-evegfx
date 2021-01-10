@@ -227,6 +227,108 @@ pub enum BlendFunc {
     OneMinusDstAlpha = 5,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct ColorMask(u8);
+
+impl ColorMask {
+    const RED_MASK: u8 = 0b1000;
+    const GREEN_MASK: u8 = 0b0100;
+    const BLUE_MASK: u8 = 0b0010;
+    const ALPHA_MASK: u8 = 0b0001;
+
+    pub const fn new(red: bool, green: bool, blue: bool, alpha: bool) -> Self {
+        let mut ret = Self(0);
+        if red {
+            ret = ret.with_red();
+        }
+        if green {
+            ret = ret.with_green();
+        }
+        if blue {
+            ret = ret.with_blue();
+        }
+        if alpha {
+            ret = ret.with_alpha();
+        }
+        ret
+    }
+
+    pub const fn with_red(self) -> Self {
+        Self(self.0 | Self::RED_MASK)
+    }
+
+    pub const fn without_red(self) -> Self {
+        Self(self.0 & !Self::RED_MASK)
+    }
+
+    pub const fn with_green(self) -> Self {
+        Self(self.0 | Self::GREEN_MASK)
+    }
+
+    pub const fn without_green(self) -> Self {
+        Self(self.0 & !Self::GREEN_MASK)
+    }
+
+    pub const fn with_blue(self) -> Self {
+        Self(self.0 | Self::BLUE_MASK)
+    }
+
+    pub const fn without_blue(self) -> Self {
+        Self(self.0 & !Self::BLUE_MASK)
+    }
+
+    pub const fn with_alpha(self) -> Self {
+        Self(self.0 | Self::ALPHA_MASK)
+    }
+
+    pub const fn without_alpha(self) -> Self {
+        Self(self.0 & !Self::ALPHA_MASK)
+    }
+
+    pub const fn to_raw(self) -> u8 {
+        self.0
+    }
+}
+
+impl Default for ColorMask {
+    fn default() -> Self {
+        Self(0b1111) // All are enabled by default
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+#[repr(u8)]
+pub enum StencilOp {
+    Zero = 0,
+    Keep = 1,
+    Replace = 2,
+    Incr = 3,
+    Decr = 4,
+    Invert = 5,
+}
+
+impl StencilOp {
+    pub const fn to_raw(self) -> u8 {
+        self as u8
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+#[repr(u8)]
+pub enum VertexFormat {
+    Whole = 0,
+    Half = 1,
+    Quarter = 2,
+    Eighth = 3,
+    Sixteenth = 4,
+}
+
+impl VertexFormat {
+    pub const fn to_raw(self) -> u8 {
+        self as u8
+    }
+}
+
 /// A matrix coefficient for use with the bitmap transform matrix.
 #[derive(Copy, Clone, PartialEq)]
 pub struct MatrixCoeff(pub(crate) u32);
