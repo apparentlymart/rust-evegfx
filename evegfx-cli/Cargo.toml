@@ -3,6 +3,7 @@ authors = ["Martin Atkins <mart@degeneration.co.uk>"]
 edition = "2018"
 license = "MIT"
 name = "evegfx-cli"
+repository = "https://github.com/apparentlymart/rust-evegfx/"
 version = "0.1.0"
 
 [dependencies]

@@ -1,8 +1,9 @@
 [package]
-name = "evegfx-macros"
-version = "0.1.0"
 authors = ["Martin Atkins <mart@degeneration.co.uk>"]
 edition = "2018"
+name = "evegfx-macros"
+repository = "https://github.com/apparentlymart/rust-evegfx/"
+version = "0.1.0"
 
 [lib]
 proc-macro = true
@@ -11,4 +12,4 @@ proc-macro = true
 nom = "6.0.1"
 proc-macro2 = "1.0.24"
 quote = "1.0"
-syn = { version = "1.0.56", features = ["full"] }
+syn = {version = "1.0.56", features = ["full"]}
