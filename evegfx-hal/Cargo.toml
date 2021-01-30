@@ -1,9 +1,10 @@
 [package]
-name = "evegfx-hal"
-version = "0.1.0"
 authors = ["Martin Atkins <mart@degeneration.co.uk>"]
 edition = "2018"
+license = "MIT"
+name = "evegfx-hal"
+version = "0.1.0"
 
 [dependencies]
-evegfx = { path = "../evegfx" }
 embedded-hal = "0.2.4"
+evegfx = {path = "../evegfx"}

@@ -1,11 +1,12 @@
 [package]
-name = "evegfx-spidriver"
-version = "0.1.0"
 authors = ["Martin Atkins <mart@degeneration.co.uk>"]
 edition = "2018"
+license = "MIT"
+name = "evegfx-spidriver"
+version = "0.1.0"
 
 [dependencies]
 embedded-hal = "0.2.4"
-evegfx = { path = "../evegfx" }
-evegfx-hal = { path = "../evegfx-hal" }
+evegfx = {path = "../evegfx"}
+evegfx-hal = {path = "../evegfx-hal"}
 spidriver = "0.1.0"

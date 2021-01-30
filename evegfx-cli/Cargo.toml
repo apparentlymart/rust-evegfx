@@ -1,13 +1,14 @@
 [package]
-name = "evegfx-cli"
-version = "0.1.0"
 authors = ["Martin Atkins <mart@degeneration.co.uk>"]
 edition = "2018"
+license = "MIT"
+name = "evegfx-cli"
+version = "0.1.0"
 
 [dependencies]
 embedded-hal = "0.2.4"
-evegfx = { path = "../evegfx" }
-evegfx-spidriver = { path = "../evegfx-spidriver" }
+evegfx = {path = "../evegfx"}
+evegfx-spidriver = {path = "../evegfx-spidriver"}
+serial-core = "0.4.0"
 serial-embedded-hal = "0.1.2"
 spidriver = "0.1.0"
-serial-core = "0.4.0"
