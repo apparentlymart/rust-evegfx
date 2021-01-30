@@ -1,5 +1,6 @@
 [package]
 authors = ["Martin Atkins <mart@degeneration.co.uk>"]
+description = "Currently just a test utility for the evegfx crate"
 edition = "2018"
 license = "MIT"
 name = "evegfx-cli"

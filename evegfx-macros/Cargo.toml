@@ -1,6 +1,8 @@
 [package]
 authors = ["Martin Atkins <mart@degeneration.co.uk>"]
+description = "Procedural macros for use with the evegfx crate"
 edition = "2018"
+license = "MIT"
 name = "evegfx-macros"
 repository = "https://github.com/apparentlymart/rust-evegfx/"
 version = "0.2.0"

@@ -1,5 +1,6 @@
 [package]
 authors = ["Martin Atkins <mart@degeneration.co.uk>"]
+description = "Adapter for the evegfx crate when accessing EVE via embedded-hal SPI"
 edition = "2018"
 license = "MIT"
 name = "evegfx-hal"
