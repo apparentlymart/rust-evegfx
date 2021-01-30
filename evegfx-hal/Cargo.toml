@@ -4,8 +4,8 @@ description = "Adapter for the evegfx crate when accessing EVE via embedded-hal 
 edition = "2018"
 license = "MIT"
 name = "evegfx-hal"
-version = "0.3.0"
+version = "0.4.0"
 
 [dependencies]
 embedded-hal = "0.2.4"
-evegfx = {path = "../evegfx", version = "0.3.0"}
+evegfx = {path = "../evegfx", version = "0.4.0"}

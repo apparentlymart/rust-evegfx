@@ -5,10 +5,10 @@ edition = "2018"
 license = "MIT"
 name = "evegfx-spidriver"
 repository = "https://github.com/apparentlymart/rust-evegfx/"
-version = "0.3.0"
+version = "0.4.0"
 
 [dependencies]
 embedded-hal = "0.2.4"
-evegfx = {path = "../evegfx", version = "0.3.0"}
-evegfx-hal = {path = "../evegfx-hal", version = "0.3.0"}
+evegfx = {path = "../evegfx", version = "0.4.0"}
+evegfx-hal = {path = "../evegfx-hal", version = "0.4.0"}
 spidriver = "0.1.0"
