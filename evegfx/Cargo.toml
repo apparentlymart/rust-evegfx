@@ -1,6 +1,6 @@
 [package]
 name = "evegfx"
-version = "0.2.0"
+version = "0.3.0"
 
 authors = ["Martin Atkins <mart@degeneration.co.uk>"]
 description = "Driver for the Bridgetek/FTDI EVE family of display controllers"

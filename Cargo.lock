@@ -53,7 +53,7 @@ dependencies = [
 
 [[package]]
 name = "evegfx"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "evegfx-macros",
  "num_enum",
@@ -61,7 +61,7 @@ dependencies = [
 
 [[package]]
 name = "evegfx-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "embedded-hal",
  "evegfx",
@@ -73,7 +73,7 @@ dependencies = [
 
 [[package]]
 name = "evegfx-hal"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "embedded-hal",
  "evegfx",
@@ -81,7 +81,7 @@ dependencies = [
 
 [[package]]
 name = "evegfx-macros"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "nom",
  "proc-macro2",
@@ -91,7 +91,7 @@ dependencies = [
 
 [[package]]
 name = "evegfx-spidriver"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "embedded-hal",
  "evegfx",
