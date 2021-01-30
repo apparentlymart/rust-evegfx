@@ -3,7 +3,7 @@ authors = ["Martin Atkins <mart@degeneration.co.uk>"]
 edition = "2018"
 name = "evegfx-macros"
 repository = "https://github.com/apparentlymart/rust-evegfx/"
-version = "0.1.0"
+version = "0.2.0"
 
 [lib]
 proc-macro = true
