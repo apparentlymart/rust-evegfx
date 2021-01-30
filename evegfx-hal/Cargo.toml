@@ -8,4 +8,4 @@ version = "0.3.0"
 
 [dependencies]
 embedded-hal = "0.2.4"
-evegfx = {path = "../evegfx"}
+evegfx = {path = "../evegfx", version = "0.3.0"}

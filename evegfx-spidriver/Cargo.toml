@@ -9,6 +9,6 @@ version = "0.3.0"
 
 [dependencies]
 embedded-hal = "0.2.4"
-evegfx = {path = "../evegfx"}
-evegfx-hal = {path = "../evegfx-hal"}
+evegfx = {path = "../evegfx", version = "0.3.0"}
+evegfx-hal = {path = "../evegfx-hal", version = "0.3.0"}
 spidriver = "0.1.0"

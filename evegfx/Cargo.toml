@@ -9,5 +9,5 @@ license = "MIT"
 repository = "https://github.com/apparentlymart/rust-evegfx/"
 
 [dependencies]
-evegfx-macros = {path = "../evegfx-macros"}
+evegfx-macros = {path = "../evegfx-macros", version = "0.3.0"}
 num_enum = {version = "0.5.1", default_features = false}
