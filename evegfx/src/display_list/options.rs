@@ -88,16 +88,84 @@ pub enum BitmapFormat {
     GLFormat = 31,
 }
 
-impl TryFrom<BitmapExtFormat> for BitmapFormat {
-    type Error = ();
-    fn try_from(ext: BitmapExtFormat) -> core::result::Result<Self, ()> {
+impl BitmapFormat {
+    /// Computes the most compact possible stride for an image of the given
+    /// width (in pixels) in the associated bitmap format.
+    ///
+    /// A bitmap might have a larger stride than returned by this function,
+    /// whether due to its representation in memory having gaps or due to
+    /// there being multiple "cells" associated with the bitmap, each of
+    /// which is of the indicated width. In the latter case, you can multiply
+    /// the `minimum_stride` result by the number of cells to find the
+    /// true stride, assuming that the cells are stored compactly.
+    ///
+    /// For bitmap formats with fewer than eight bits per pixel, the result
+    /// is automatically padded to a round number of bytes, as expected by
+    /// the display engine.
+    ///
+    /// For the bitmap formats that are based on character cells rather than
+    /// on pixels, the width should be given in character cells, and the
+    /// result will be the minimum stride for that given number of character
+    /// cells.
+    ///
+    /// `BitmapFormat::GLFormat` is not supported for this method, because
+    /// it's not a real format but rather just a marker that the format is
+    /// specified as a `BitmapExtFormat` instead. `BitmapFormat::GLFormat`
+    /// therefore always returns a stride of zero, as an invalid placeholder.
+    pub fn minimum_stride(self, width: u32) -> u32 {
+        match self {
+            Self::ARGB1555 => width * 2,
+            Self::L8 => width,
+            Self::RGB332 => width,
+            Self::ARGB2 => width,
+            Self::ARGB4 => width * 2,
+            Self::RGB565 => width * 2,
+            Self::Text8x8 => width,     // width in character cells
+            Self::TextVGA => width * 2, // width in character cells
+            Self::Bargraph => width,
+            Self::Paletted565 => width,
+            Self::Paletted4444 => width,
+            Self::Paletted8 => width,
+            // The remaining formats are a little more awkward because
+            // they might need padding to achieve byte alignment.
+            Self::L1 => Self::bytes_for_bits(width),
+            Self::L4 => Self::bytes_for_bits(width * 4),
+            Self::L2 => Self::bytes_for_bits(width * 2),
+            Self::GLFormat => 0,
+        }
+    }
+
+    fn bytes_for_bits(bits: u32) -> u32 {
+        // Under integer arithmetic, this rounds up to the nearest multiple
+        // of eight.
+        (bits + 7) / 8
+    }
+
+    /// Returns `true` if the format requires an extended format to be
+    /// specified and is therefore not self-sufficient.
+    ///
+    /// If you intend to represent extended formats then you should use
+    /// `BitmapExtFormat` instead. Converting a `BitmapExtFormat` to
+    /// `BitmapFormat` will return a format which returns `true` from this
+    /// method if the extended format doesn't correspond with one of the
+    /// base formats.
+    pub fn needs_ext_format(self) -> bool {
+        match self {
+            Self::GLFormat => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<BitmapExtFormat> for BitmapFormat {
+    fn from(ext: BitmapExtFormat) -> Self {
         let raw = ext as u16;
         if raw > 17 {
-            return Err(());
+            return Self::GLFormat;
         }
         match BitmapFormat::try_from(raw as u8) {
-            Ok(v) => Ok(v),
-            Err(_) => Err(()),
+            Ok(v) => v,
+            Err(_) => unreachable!(),
         }
     }
 }
