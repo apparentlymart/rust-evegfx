@@ -443,6 +443,37 @@ pub trait Builder: Sized {
         self.append_command(DLCmd::bitmap_source(ptr))
     }
 
+    // A convenience wrapper around `bitmap_source`, `bitmap_layout`, and
+    // possibly `bitmap_ext_format` and `palette_source` if necessary, which
+    // associates the given bitmap with the bitmap handle most recently
+    // selected using `bitmap_handle`.
+    //
+    // This method does _not_ emit `bitmap_size` or `bitmap_size_h`, because
+    // a `Bitmap` object does not provide enough information to also set
+    // the `filter`, `wrap_x`, and `wrap_y` options.
+    //
+    // Current implementations of the graphics engine have a limited number
+    // of bits associated with the bitmap stride and height. If you pass an
+    // oversize bitmap then those values will be truncated, causing integer
+    // overflow.
+    fn bitmap_source_all(
+        &mut self,
+        bitmap: crate::graphics::Bitmap<
+            <<Self as Builder>::Model as crate::models::Model>::MainMem,
+        >,
+    ) -> Result<(), Self::Error> {
+        self.bitmap_source(bitmap.image_data)?;
+        let base_format: options::BitmapFormat = bitmap.format.into();
+        self.bitmap_layout(base_format, bitmap.stride as u16, bitmap.height as u16)?;
+        if base_format.needs_ext_format() {
+            self.bitmap_ext_format(bitmap.format)?;
+        }
+        if let Some(addr) = bitmap.palette_data {
+            self.palette_source(addr)?;
+        }
+        Ok(())
+    }
+
     fn bitmap_transform_a(
         &mut self,
         coeff: impl Into<options::MatrixCoeff>,
