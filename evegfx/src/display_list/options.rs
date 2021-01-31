@@ -338,6 +338,9 @@ impl MatrixCoeff {
     const SCALE_8_8: f32 = 256.0;
     const SCALE_1_15: f32 = 32768.0;
 
+    pub const ZERO: Self = Self::new_int(0);
+    pub const ONE: Self = Self::new_int(1);
+
     /// Creates a matrix coefficient with a whole number value.
     pub const fn new_int(v: i8) -> Self {
         let enc = (((v as i16) << 8) as u16) as u32;
@@ -491,6 +494,13 @@ pub struct Matrix3x2(
     pub(crate) (MatrixCoeff, MatrixCoeff, MatrixCoeff),
     pub(crate) (MatrixCoeff, MatrixCoeff, MatrixCoeff),
 );
+
+impl Matrix3x2 {
+    pub const IDENTITY: Self = Self(
+        (MatrixCoeff::ONE, MatrixCoeff::ZERO, MatrixCoeff::ZERO),
+        (MatrixCoeff::ZERO, MatrixCoeff::ONE, MatrixCoeff::ZERO),
+    );
+}
 
 impl<A, B, C, D, E, F> From<((A, B, C), (D, E, F))> for Matrix3x2
 where
