@@ -44,6 +44,12 @@ impl Options for LoadImage {
     }
 }
 
+impl core::default::Default for LoadImage {
+    fn default() -> Self {
+        Self(0)
+    }
+}
+
 impl LoadImage {
     pub const fn jpeg_color_mode(self, mode: JPEGColorMode) -> Self {
         Self((self.0 & (!0b1)) | mode as u32)
