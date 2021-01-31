@@ -1,5 +1,6 @@
 //! Data types to represent geometry and colors for various graphics operations.
 
+mod bitmap;
 mod color;
 mod pos;
 
@@ -35,3 +36,6 @@ pub use pos::ScissorPos;
 
 #[doc(inline)]
 pub use pos::ScissorRect;
+
+#[doc(inline)]
+pub use bitmap::Bitmap;
