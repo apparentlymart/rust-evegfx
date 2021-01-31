@@ -9,8 +9,8 @@ version = "0.5.0"
 
 [dependencies]
 embedded-hal = "0.2.4"
-evegfx = {path = "../evegfx", version = "0.4.0"}
-evegfx-spidriver = {path = "../evegfx-spidriver", version = "0.4.0"}
+evegfx = {path = "../evegfx", version = "0.5.0"}
+evegfx-spidriver = {path = "../evegfx-spidriver", version = "0.5.0"}
 serial-core = "0.4.0"
 serial-embedded-hal = "0.1.2"
 spidriver = "0.1.0"
