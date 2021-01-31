@@ -114,7 +114,7 @@ impl DLCmd {
         let (p_width, p_height) = Self::physical_bitmap_size(width, height);
         let p_width = ((p_width as u32) >> 9) & 0b11;
         let p_height = ((p_height as u32) >> 9) & 0b11;
-        OpCode::BITMAP_SIZE_H.build(p_width << 9 | p_height)
+        OpCode::BITMAP_SIZE_H.build(p_width << 2 | p_height)
     }
 
     /// `bitmap_size_pair` is a helper for calling both `bitmap_size` and
@@ -989,7 +989,20 @@ mod tests {
                 options::BitmapWrapMode::Border,
                 options::BitmapWrapMode::Border
             ),
-            (DLCmd::from_raw(0x08000100), DLCmd::from_raw(0x29000401)),
+            (DLCmd::from_raw(0x08000100), DLCmd::from_raw(0x29000009)),
+        );
+        assert_eq!(
+            DLCmd::bitmap_size_pair(
+                3 * 256,
+                3 * 240,
+                options::BitmapSizeFilter::Nearest,
+                options::BitmapWrapMode::Repeat,
+                options::BitmapWrapMode::Repeat
+            ),
+            (
+                DLCmd::from_raw(0b00001000_000_0_1_1_100000000_011010000),
+                DLCmd::from_raw(0b00101001_00000000000000000000_01_01)
+            )
         );
         assert_eq!(
             DLCmd::bitmap_source(Ptr::<TestMainMem>::new(0x20)),
