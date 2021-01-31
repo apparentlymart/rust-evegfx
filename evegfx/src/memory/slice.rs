@@ -9,6 +9,13 @@ pub struct Slice<R: MemoryRegion> {
 }
 
 impl<R: MemoryRegion> Slice<R> {
+    pub fn new_length(start: Ptr<R>, length: u32) -> Self {
+        Slice {
+            start_: start,
+            end_: start + length,
+        }
+    }
+
     pub fn start(&self) -> Ptr<R> {
         self.start_
     }

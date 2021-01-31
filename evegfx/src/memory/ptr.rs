@@ -42,6 +42,13 @@ impl<R: MemoryRegion> Ptr<R> {
     pub fn to_raw_offset(self) -> u32 {
         self.addr - R::BASE_ADDR
     }
+
+    /// Returns a slice whose base address is the pointer and whose length
+    /// is given as an argument.
+    #[inline]
+    pub fn slice_length(self, length: u32) -> super::slice::Slice<R> {
+        super::slice::Slice::new_length(self, length)
+    }
 }
 
 impl<R: MemoryRegion + HostAccessible> Ptr<R> {
