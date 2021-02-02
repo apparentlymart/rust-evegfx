@@ -2,6 +2,9 @@
 
 pub mod fake;
 
+mod command;
+pub use command::{direct_command_interface, CommandInterface};
+
 /// Implementations of `Interface` serve as adapters between the interface
 /// this library expects and a specific physical implementation of that
 /// interface, such as a SPI bus.
